@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keitaro Wrapper</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Keitaro Wrapper</h1>
+    <nav>
+      <button data-tab="create" class="active">Создать кампанию</button>
+      <button data-tab="edit">Редактор офферов</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-create" class="tab active">
+      <form id="create-form">
+        <label>Название <input name="name" required></label>
+        <label>Гео (ISO-код) <input name="geo" maxlength="2" placeholder="RU" required></label>
+        <label>Оффер <select name="offer_id" id="offer-select" required></select></label>
+        <button type="submit">Создать</button>
+      </form>
+      <pre id="create-result"></pre>
+    </section>
+
+    <section id="tab-edit" class="tab">
+      <label>ID кампании в Keitaro <input id="edit-campaign-id" type="number"></label>
+      <button id="load-offers">Загрузить</button>
+      <table id="offers-table">
+        <thead><tr><th>ID</th><th>Оффер</th><th>Доля, %</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row">
+        <select id="add-offer-select"></select>
+        <button id="add-offer">Добавить оффер</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
