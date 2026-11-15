@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     fallback_redirect_url: str = "https://www.google.com"
 
-    frontend_dir: Path = ROOT_DIR / "frontend"
+    frontend_dir: Path = ROOT_DIR / "frontend" / "dist"
 
 
 settings = Settings()

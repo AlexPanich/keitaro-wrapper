@@ -16,7 +16,9 @@ services:
       retries: 10
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-keitaro}:${POSTGRES_PASSWORD:-keitaro}@db:5432/${POSTGRES_DB:-keitaro_wrapper}
@@ -25,8 +27,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./frontend:/frontend:ro
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
