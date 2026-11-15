@@ -32,3 +32,17 @@ cd frontend && npm run build         # tsc + vite build
 - Каждая задача — в отдельной ветке от `main`: `feature/<кратко>` для новой функциональности, `fix/<кратко>` для исправлений (kebab-case, например `feature/offer-editor`, `fix/share-rounding`). В `main` напрямую не коммитить.
 - Коммиты — по Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:` …), scope по части проекта: `feat(backend): ...`, `test(frontend): ...`. Коммить через скил `git-commit` (`/commit`), он сам разбивает изменения на логичные коммиты.
 - Секреты (`KEITARO_API_KEY` и т. п.) только через `.env`, не хардкодить.
+
+## Agent skills
+
+### Issue tracker
+
+Задачи ведутся в GitHub Issues репозитория `AlexPanich/keitaro-wrapper` через `gh`. Подробнее: `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Стандартные метки: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Подробнее: `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` и `docs/adr/` в корне репозитория. Подробнее: `docs/agents/domain.md`.
