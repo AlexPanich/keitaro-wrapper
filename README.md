@@ -7,7 +7,7 @@
    - поток 2: остальной трафик → выбранный оффер.
 2. **Редактор кампании** — добавление и удаление офферов с пересчётом долей.
 
-Стек: FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL, фронт — HTML + vanilla JS.
+Стек: FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL, фронт — Vite + React + TypeScript.
 
 ## Структура
 
@@ -25,7 +25,8 @@ backend/
       offer_editor.py
     main.py
   alembic/          # миграции
-frontend/           # статический UI (раздаётся FastAPI на /)
+  tests/            # pytest
+frontend/           # Vite + React + TS; сборка в dist/ раздаётся FastAPI на /
 ```
 
 ## Настройка
@@ -54,6 +55,22 @@ pip install -r requirements.txt
 
 alembic upgrade head
 uvicorn app.main:app --reload
+```
+
+Фронт в dev-режиме (прокси `/api` → `localhost:8000`):
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # сборка в frontend/dist, её раздаёт FastAPI
+```
+
+## Тесты
+
+```bash
+cd backend && pip install -r requirements-dev.txt && pytest   # pytest + httpx, Keitaro замокан
+cd frontend && npm test                                       # vitest + Testing Library
 ```
 
 ## Миграции
