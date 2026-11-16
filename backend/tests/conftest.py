@@ -10,28 +10,79 @@ from app.api.deps import get_keitaro
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
+from app.schemas.error import KeitaroDetails
+from app.services.keitaro.client import HTML_BODY, KeitaroError
 
 
 class FakeKeitaro:
-    """Заглушка клиента Keitaro — без сетевых запросов. Тест может подменить списки."""
+    """Заглушка клиента Keitaro — без сетевых запросов. Тест может подменить списки.
+
+    Каждый вызов пишется в ``calls`` как ``(метод, аргумент)`` — по нему тест проверяет,
+    что ушло в Keitaro. Ответы ``create_campaign`` и ``create_stream`` можно подменить
+    очередями ``campaign_responses`` / ``stream_responses`` (исключение в очереди бросается).
+    """
 
     def __init__(self) -> None:
         self.offers: list[dict] = [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
         self.groups: list[dict] = []
         self.domains: list[dict] = []
         self.traffic_sources: list[dict] = []
+        self.calls: list[tuple[str, object]] = []
+        self.campaign_responses: list[dict | Exception] = []
+        self.stream_responses: list[dict | Exception] = []
+        self._next_id = 100
+
+    def _id(self) -> int:
+        self._next_id += 1
+        return self._next_id
+
+    def writes(self) -> list[tuple[str, object]]:
+        """Изменяющие вызовы (всё, кроме чтения)."""
+        return [c for c in self.calls if not c[0].startswith(("list_", "get_"))]
 
     async def list_offers(self) -> list[dict]:
+        self.calls.append(("list_offers", None))
         return self.offers
 
+    async def get_offer(self, offer_id: int) -> dict:
+        self.calls.append(("get_offer", offer_id))
+        for o in self.offers:
+            if o["id"] == offer_id:
+                return o
+        raise KeitaroError(
+            "keitaro_error",
+            "Keitaro вернул ошибку",
+            KeitaroDetails(status=404, method="GET", path=f"/offers/{offer_id}", body=HTML_BODY),
+        )
+
+    @staticmethod
+    def _queued(queue: list[dict | Exception]) -> dict | None:
+        if not queue:
+            return None
+        response = queue.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    async def create_campaign(self, payload: dict) -> dict:
+        self.calls.append(("create_campaign", payload))
+        return self._queued(self.campaign_responses) or {"id": self._id(), **payload, "state": "active"}
+
+    async def create_stream(self, payload: dict) -> dict:
+        self.calls.append(("create_stream", payload))
+        return self._queued(self.stream_responses) or {"id": self._id(), **payload}
+
     async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
+        self.calls.append(("list_groups", group_type))
         assert group_type == "campaigns"
         return self.groups
 
     async def list_domains(self) -> list[dict]:
+        self.calls.append(("list_domains", None))
         return self.domains
 
     async def list_traffic_sources(self) -> list[dict]:
+        self.calls.append(("list_traffic_sources", None))
         return self.traffic_sources
 
     async def close(self) -> None:

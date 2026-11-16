@@ -12,7 +12,8 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `models/` — ORM-модели (`Mapped[...]` / `mapped_column`).
 - `schemas/` — Pydantic-схемы запросов/ответов.
 - `services/keitaro/client.py` — тонкий async-клиент Keitaro Admin API (`/admin_api/v1`, заголовок `Api-Key`).
-- `services/campaign_builder.py`, `services/offer_editor.py` — бизнес-логика (пока заглушки с TODO).
+- `services/campaign_builder.py` — создаватор: проверки формы и id по Keitaro, кампания с подбором alias, гео- и оффер-поток, строка журнала.
+- `services/offer_editor.py` — редактор (пока заглушка с TODO).
 
 ## Соглашения
 

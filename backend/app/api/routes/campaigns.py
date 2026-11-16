@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_keitaro
 from app.db.session import get_session
 from app.models import Campaign
-from app.schemas.campaign import CampaignCreate, CampaignRead
+from app.schemas.campaign import CampaignCreate, CampaignCreated, CampaignRead
 from app.schemas.offer import OfferAdd, StreamOffer
 from app.services import campaign_builder, offer_editor
 from app.services.keitaro import KeitaroClient
@@ -19,7 +19,7 @@ async def list_campaigns(session: AsyncSession = Depends(get_session)):
     return result.all()
 
 
-@router.post("", response_model=CampaignRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CampaignCreated, status_code=status.HTTP_201_CREATED)
 async def create_campaign(
     data: CampaignCreate,
     session: AsyncSession = Depends(get_session),
