@@ -4,7 +4,8 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 
 ## Раскладка `app/`
 
-- `main.py` — приложение, exception handlers, монтирование фронта.
+- `main.py` — `create_app(frontend_dir)`: приложение, exception handlers, раздача фронта через `FrontendMount` (не перехватывает пути `/api`, чтобы 404/405 API оставались в конверте).
+- `core/config.py`: пустые `KEITARO_DEFAULT_*_ID=` в `.env` дают `None` («не выбрано»).
 - `api/router.py` — общий роутер с префиксом `/api`; роуты в `api/routes/`, зависимости в `api/deps.py`.
 - `core/config.py` — `Settings` (читает `.env` из корня репозитория).
 - `core/errors.py` — единый конверт ошибок: `ApiError`, статусы по кодам, exception handlers. Сам список кодов `ErrorCode` — в `schemas/error.py`.
