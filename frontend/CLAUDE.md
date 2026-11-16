@@ -7,7 +7,8 @@ Vite + React 19 + TypeScript (strict). Без роутера и стейт-ме�
 - `main.tsx` — точка входа.
 - `App.tsx` — шапка, вкладки, загрузка справочника офферов.
 - `api.ts` — единственное место с `fetch`: типы ответов бэка и функции `api.*`. Пути относительные (`/api/...`).
-- `components/` — `CreateCampaign`, `OfferEditor`, `OfferSelect`, `ErrorBanner` (плашка ошибки операции), `FieldError` (ошибка под полем).
+- `components/` — `CreateCampaign`, `OfferSelect`, `ErrorBanner` (плашка ошибки операции), `FieldError` (ошибка под полем); редактор — `Editor` (мастер-деталь) из `CampaignSearch`, `StreamList`, `StreamDetail`, `ShareBar`, `OfferTags`, `CampaignState`, `Tag`.
+- `editor.ts` — чистые правила отображения редактора (подписи потоков и офферов, сумма долей, статус-точка потока).
 - `style.css` — глобальные стили, цвета через CSS-переменные в `:root`.
 - `test/setup.ts` — подключение `jest-dom` и cleanup после каждого теста.
 

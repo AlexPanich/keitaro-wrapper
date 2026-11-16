@@ -20,6 +20,6 @@ describe('App (smoke)', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/keitaro/offers', expect.anything());
 
     await userEvent.click(screen.getByRole('button', { name: 'Редактор офферов' }));
-    expect(screen.getByRole('button', { name: 'Добавить оффер' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Кампания' })).toBeInTheDocument();
   });
 });

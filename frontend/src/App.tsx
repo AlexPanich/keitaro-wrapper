@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { api, toApiError, type ApiError, type OfferShort } from './api';
 import CreateCampaign from './components/CreateCampaign';
+import Editor from './components/Editor';
 import ErrorBanner from './components/ErrorBanner';
-import OfferEditor from './components/OfferEditor';
 
 type Tab = 'create' | 'edit';
 
@@ -32,9 +32,9 @@ export default function App() {
           </button>
         </nav>
       </header>
-      <main>
+      <main className={tab === 'edit' ? 'main--wide' : undefined}>
         <ErrorBanner error={offersError} onClose={() => setOffersError(null)} />
-        {tab === 'create' ? <CreateCampaign offers={offers} /> : <OfferEditor offers={offers} />}
+        {tab === 'create' ? <CreateCampaign offers={offers} /> : <Editor />}
       </main>
     </>
   );
