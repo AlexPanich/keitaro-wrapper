@@ -11,7 +11,7 @@ from app.services.keitaro import KeitaroClient
 pytestmark = pytest.mark.anyio
 
 API_KEY = "secret-key-123"
-ENVELOPE_KEYS = {"code", "message", "fields", "keitaro"}
+ENVELOPE_KEYS = {"code", "message", "fields", "keitaro", "keitaro_url"}
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ async def test_invalid_json_body(client):
 async def test_unknown_route_is_not_found(client):
     res = await client.get("/api/nope")
     assert res.status_code == 404
-    assert res.json() == {"code": "not_found", "message": "Не найдено", "fields": {}, "keitaro": None}
+    assert res.json() == {"code": "not_found", "message": "Не найдено", "fields": {}, "keitaro": None, "keitaro_url": None}
 
 
 async def test_wrong_method_is_not_validation_error(client):
@@ -135,6 +135,7 @@ async def test_unexpected_exception_is_internal_error(raw_client, caplog):
         "message": "Внутренняя ошибка сервиса",
         "fields": {},
         "keitaro": None,
+        "keitaro_url": None,
     }
     assert "Traceback" not in res.text
     assert "NotImplementedError" in caplog.text

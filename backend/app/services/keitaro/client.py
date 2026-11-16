@@ -148,6 +148,10 @@ class KeitaroClient:
     async def create_campaign(self, payload: dict) -> dict:
         return await self._request("POST", "/campaigns", json=payload)
 
+    async def delete_campaign(self, campaign_id: int) -> None:
+        """Перенос кампании в архив (alias освобождается). Ответ — 200 и массив кампаний, он не нужен."""
+        await self._request("DELETE", f"/campaigns/{campaign_id}")
+
     # --- потоки ---
     async def list_streams(self, campaign_id: int) -> list[dict]:
         return await self._request("GET", f"/campaigns/{campaign_id}/streams")

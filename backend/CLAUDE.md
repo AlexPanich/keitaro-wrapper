@@ -12,13 +12,13 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `models/` — ORM-модели (`Mapped[...]` / `mapped_column`).
 - `schemas/` — Pydantic-схемы запросов/ответов.
 - `services/keitaro/client.py` — тонкий async-клиент Keitaro Admin API (`/admin_api/v1`, заголовок `Api-Key`).
-- `services/campaign_builder.py` — создаватор: проверки формы и id по Keitaro, кампания с подбором alias, гео- и оффер-поток, строка журнала; `services/editor.py` — редактор: поиск кампании, загрузка потоков и сверка `stream_offers` с Keitaro.
+- `services/campaign_builder.py` — создаватор: проверки формы и id по Keitaro, кампания с подбором alias, гео- и оффер-поток, строка журнала, откат (`DELETE /campaigns/{id}`) при сбое после создания кампании; `services/editor.py` — редактор: поиск кампании, загрузка потоков и сверка `stream_offers` с Keitaro.
 
 ## Соглашения
 
 - Роуты тонкие: валидация через схемы, вся логика — в `services/`. Сервисы получают `AsyncSession` и `KeitaroClient` аргументами (через `Depends`), а не создают сами.
 - Клиент Keitaro получаем только через `Depends(get_keitaro)` — так он закрывается и легко подменяется в тестах.
-- Любая ошибка API — конверт `{code, message, fields, keitaro}` (`ErrorResponse`). Свои ошибки бросай как `ApiError(code, message, fields=...)`; HTTP-статус берётся из `code`. Список кодов закрытый — новый код добавляй одновременно в `ErrorCode` (`schemas/error.py`), `HTTP_STATUS` и в union на фронте (`frontend/src/api.ts`).
+- Любая ошибка API — конверт `{code, message, fields, keitaro, keitaro_url}` (`ErrorResponse`); `keitaro_url` — ссылка на кампанию в админке, когда пользователю нужно доделать что-то руками (`create_orphaned`), иначе `null`. Свои ошибки бросай как `ApiError(code, message, fields=...)`; HTTP-статус берётся из `code`. Список кодов закрытый — новый код добавляй одновременно в `ErrorCode` (`schemas/error.py`), `HTTP_STATUS` и в union на фронте (`frontend/src/api.ts`).
 - `KeitaroError` (наследник `ApiError`) бросает только клиент: `keitaro_auth` / `keitaro_error` / `keitaro_unavailable`, в `keitaro` — `{status, method, path, body}` без ключа API. Сервисы могут перехватить её и бросить свою ошибку с текстом шага. `message` всегда наш, по-русски.
 - Ошибки Pydantic автоматически раскладываются в `fields`; любое непредвиденное исключение (включая `NotImplementedError` заглушек) → `internal_error` 500, traceback только в лог.
 - Новые методы Keitaro добавляй в `KeitaroClient` через `_request`, не дергай `httpx` напрямую из сервисов.

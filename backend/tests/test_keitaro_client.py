@@ -164,3 +164,17 @@ async def test_missing_offer_is_404_keitaro_error():
     await client.close()
     assert info.value.status == 404
     assert info.value.keitaro.path == "/offers/99"
+
+
+async def test_delete_campaign_sends_delete():
+    # Keitaro отвечает на DELETE 200 и массивом кампаний (не так, как в документации) — тело не нужно.
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        return httpx.Response(200, json=[{"id": 42, "state": "deleted"}])
+
+    client = make_client(handler)
+    await client.delete_campaign(42)
+    await client.close()
+    assert seen == [("DELETE", "/admin_api/v1/campaigns/42")]

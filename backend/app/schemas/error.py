@@ -34,3 +34,6 @@ class ErrorResponse(BaseModel):
     message: str
     fields: dict[str, str] = {}
     keitaro: KeitaroDetails | None = None
+    # Ссылка на кампанию в админке Keitaro, когда пользователю нужно что-то сделать там руками
+    # (``create_orphaned``: удалить полусозданную кампанию).
+    keitaro_url: str | None = None

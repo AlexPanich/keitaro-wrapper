@@ -23,6 +23,7 @@ class FakeKeitaro:
     Каждый вызов пишется в ``calls`` как ``(метод, аргумент)`` — по нему тест проверяет,
     что ушло в Keitaro. Ответы ``create_campaign`` и ``create_stream`` можно подменить
     очередями ``campaign_responses`` / ``stream_responses`` (исключение в очереди бросается).
+    ``delete_error`` — исключение, которым падает ``delete_campaign`` (неудачная компенсация).
     """
 
     def __init__(self) -> None:
@@ -35,6 +36,7 @@ class FakeKeitaro:
         self.calls: list[tuple[str, object]] = []
         self.campaign_responses: list[dict | Exception] = []
         self.stream_responses: list[dict | Exception] = []
+        self.delete_error: Exception | None = None
         self._next_id = 100
 
     def _id(self) -> int:
@@ -76,6 +78,12 @@ class FakeKeitaro:
     async def create_stream(self, payload: dict) -> dict:
         self.calls.append(("create_stream", payload))
         return self._queued(self.stream_responses) or {"id": self._id(), **payload}
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        self.calls.append(("delete_campaign", campaign_id))
+        if self.delete_error is not None:
+            raise self.delete_error
+        self.campaigns.pop(campaign_id, None)
 
     async def list_campaigns(self) -> list[dict]:
         self.calls.append(("list_campaigns", None))
