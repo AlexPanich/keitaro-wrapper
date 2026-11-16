@@ -28,13 +28,18 @@ class EditorOffer(BaseModel):
     offer_id: int
     # Название из `GET /offers`; `None` — оффера там нет («удалён в Keitaro»).
     name: str | None
-    # Доля в Keitaro; у архивного оффера — `None`. Сумма в потоке может быть ≠ 100.
+    # Доля в Keitaro; `None` — оффера нет в потоке Keitaro (архивный или новый в черновике).
+    # Сумма в потоке может быть ≠ 100.
     share: int | None
+    # Доля «Станет»: из черновика, а без черновика — как в Keitaro; у архивного — `None`.
+    new_share: int | None
     # Оффер выключен в Keitaro, но в потоке считается обычным активным.
     disabled: bool
     # Оффера нет в `GET /offers`.
     deleted: bool
     pinned: bool
+    # `False` — оффер добавлен в черновике и ещё ни разу не публиковался («новый»).
+    published: bool
 
 
 class EditorStream(BaseModel):
@@ -49,8 +54,18 @@ class EditorStream(BaseModel):
     # Имя `schema` занято в BaseModel, поэтому поле называется иначе, а в JSON — `schema`.
     stream_schema: str = Field(serialization_alias="schema")
     is_offer_stream: bool
+    # У потока есть черновик: `offers` и `archive` показывают состав черновика.
+    draft: bool
+    # Активные офферы в порядке потока (черновика, если он есть).
     offers: list[EditorOffer]
+    # Архивные офферы, по id.
     archive: list[EditorOffer]
+
+
+class OfferAdd(BaseModel):
+    """Тело Add: оффер из общего поиска."""
+
+    offer_id: int
 
 
 class EditorView(BaseModel):

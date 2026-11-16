@@ -98,10 +98,14 @@ async def test_offer_stream_shows_offers_with_shares_and_labels(client, keitaro)
     [s] = (await load(client))["streams"]
 
     assert s["offers"] == [
-        {"offer_id": 1, "name": "Offer A", "share": 30, "disabled": False, "deleted": False, "pinned": False},
-        {"offer_id": 2, "name": "Offer B", "share": 30, "disabled": True, "deleted": False, "pinned": False},
-        {"offer_id": 77, "name": None, "share": 10, "disabled": False, "deleted": True, "pinned": False},
+        {"offer_id": 1, "name": "Offer A", "share": 30, "new_share": 30,
+         "disabled": False, "deleted": False, "pinned": False, "published": True},
+        {"offer_id": 2, "name": "Offer B", "share": 30, "new_share": 30,
+         "disabled": True, "deleted": False, "pinned": False, "published": True},
+        {"offer_id": 77, "name": None, "share": 10, "new_share": 10,
+         "disabled": False, "deleted": True, "pinned": False, "published": True},
     ]
+    assert s["draft"] is False
     assert s["archive"] == []
 
 
@@ -134,8 +138,10 @@ async def test_offers_gone_from_keitaro_go_to_archive_unpinned(client, keitaro, 
 
     assert [o["offer_id"] for o in s["offers"]] == [1]
     assert s["archive"] == [
-        {"offer_id": 3, "name": "Offer C", "share": None, "disabled": False, "deleted": False, "pinned": False},
-        {"offer_id": 88, "name": None, "share": None, "disabled": False, "deleted": True, "pinned": False},
+        {"offer_id": 3, "name": "Offer C", "share": None, "new_share": None,
+         "disabled": False, "deleted": False, "pinned": False, "published": True},
+        {"offer_id": 88, "name": None, "share": None, "new_share": None,
+         "disabled": False, "deleted": True, "pinned": False, "published": True},
     ]
     session.expire_all()
     pinned = {r.offer_id: r.pinned for r in await session.scalars(select(KnownOffer))}

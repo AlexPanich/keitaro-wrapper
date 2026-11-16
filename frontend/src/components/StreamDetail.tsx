@@ -1,13 +1,30 @@
 import { useState } from 'react';
 
-import type { EditorStream } from '../api';
-import { hasSumProblem, offerLabel, shareSum, streamTypeLabel } from '../editor';
+import type { ApiError, EditorStream } from '../api';
+import { hasSumProblem, newShareSum, offerLabel, shareSum, streamTypeLabel } from '../editor';
+import AddOffer from './AddOffer';
+import DraftBar from './DraftBar';
 import OfferTags from './OfferTags';
+import OffersTable from './OffersTable';
 import ShareBar from './ShareBar';
 import Tag from './Tag';
 
-/** Выбранный оффер-поток: полоса долей, таблица офферов и свёрнутый архив. Только просмотр. */
-export default function StreamDetail({ stream }: { stream: EditorStream }) {
+/** Действия с черновиком потока; каждое возвращает ошибку, если бэк отказал. */
+export interface StreamActions {
+  add: (offerId: number) => Promise<ApiError | null>;
+  remove: (offerId: number) => void;
+  bringBack: (offerId: number) => void;
+  cancel: () => void;
+}
+
+interface Props {
+  stream: EditorStream;
+  busy: boolean;
+  actions: StreamActions;
+}
+
+/** Выбранный оффер-поток: полоса долей, таблица «В Keitaro → Станет», Add, архив и панель черновика. */
+export default function StreamDetail({ stream, busy, actions }: Props) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const { offers, archive } = stream;
 
@@ -15,6 +32,7 @@ export default function StreamDetail({ stream }: { stream: EditorStream }) {
     <div className="stream-detail">
       <h2>
         {stream.name} {stream.state === 'disabled' && <Tag tone="warn">поток выключен</Tag>}
+        {stream.draft && <Tag tone="draft">черновик</Tag>}
       </h2>
       <div className="muted">
         stream_id {stream.id} · {streamTypeLabel(stream.type)} · позиция {stream.position ?? '—'}
@@ -31,26 +49,11 @@ export default function StreamDetail({ stream }: { stream: EditorStream }) {
       ) : (
         <>
           <ShareBar offers={offers} />
-          <table className="offers-table">
-            <thead>
-              <tr>
-                <th>Оффер</th>
-                <th className="num">В Keitaro</th>
-              </tr>
-            </thead>
-            <tbody>
-              {offers.map((o) => (
-                <tr key={o.offer_id}>
-                  <td>
-                    <span>{offerLabel(o)}</span> <OfferTags offer={o} />
-                  </td>
-                  <td className="num">{o.share}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <OffersTable stream={stream} busy={busy} onRemove={actions.remove} onBringBack={actions.bringBack} />
         </>
       )}
+
+      <AddOffer busy={busy} onAdd={actions.add} />
 
       {archive.length > 0 && (
         <div className="archive">
@@ -63,16 +66,27 @@ export default function StreamDetail({ stream }: { stream: EditorStream }) {
             {archiveOpen ? '▾' : '▸'} Архив ({archive.length})
           </button>
           {archiveOpen && (
-            <ul className="archive__list">
+            <ul className="archive__list" aria-label="Архив">
               {archive.map((o) => (
                 <li key={o.offer_id}>
-                  <span>{offerLabel(o)}</span> <OfferTags offer={o} />
+                  <span>{offerLabel(o)}</span> <OfferTags offer={o} />{' '}
+                  <button
+                    type="button"
+                    className="link"
+                    disabled={busy || o.deleted}
+                    title={o.deleted ? 'Оффер удалён в Keitaro, вернуть нельзя' : undefined}
+                    onClick={() => actions.bringBack(o.offer_id)}
+                  >
+                    Вернуть
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       )}
+
+      {stream.draft && <DraftBar sum={newShareSum(offers)} busy={busy} onCancel={actions.cancel} />}
     </div>
   );
 }

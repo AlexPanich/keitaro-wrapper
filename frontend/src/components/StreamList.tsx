@@ -3,6 +3,7 @@ import { streamStatus, streamTypeLabel, type StreamStatus } from '../editor';
 
 const STATUS_TITLE: Record<StreamStatus, string> = {
   readonly: 'не оффер-поток, только просмотр',
+  draft: 'черновик',
   attention: 'требует внимания',
   published: 'опубликован',
 };

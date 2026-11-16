@@ -4,15 +4,18 @@ import { api, toApiError, type ApiError, type CampaignShort, type EditorView } f
 import CampaignSearch from './CampaignSearch';
 import CampaignState from './CampaignState';
 import ErrorBanner from './ErrorBanner';
-import StreamDetail from './StreamDetail';
+import StreamDetail, { type StreamActions } from './StreamDetail';
 import StreamList from './StreamList';
+import Toast from './Toast';
 
 /** Редактор офферов: слева кампания и её потоки, справа выбранный оффер-поток. */
 export default function Editor() {
   const [view, setView] = useState<EditorView | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const closeToast = useCallback(() => setToast(null), []);
 
   const load = useCallback(async (campaignId: number) => {
     setLoading(true);
@@ -29,6 +32,29 @@ export default function Editor() {
     }
   }, []);
 
+  /**
+   * Действие с черновиком: ответ бэка — новое состояние кампании. Отказ без `fields` — всплывающим
+   * сообщением, с `fields` — вызвавшему (покажет под полем), остальное — плашкой.
+   */
+  const run = async (action: () => Promise<EditorView>): Promise<ApiError | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      setView(await action());
+      return null;
+    } catch (e) {
+      const err = toApiError(e);
+      if (err.code === 'validation_error') {
+        if (Object.keys(err.fields).length === 0) setToast(err.message);
+      } else {
+        setError(err);
+      }
+      return err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const open = (campaign: CampaignShort) => {
     setSelectedId(null);
     void load(campaign.id);
@@ -38,6 +64,13 @@ export default function Editor() {
   const offerStreams = streams.filter((s) => s.is_offer_stream);
   // По умолчанию — первый оффер-поток; после Fetch выбор сохраняется, если поток ещё есть.
   const current = offerStreams.find((s) => s.id === selectedId) ?? offerStreams[0] ?? null;
+
+  const actions = (campaignId: number, streamId: number): StreamActions => ({
+    add: (offerId) => run(() => api.addOffer(campaignId, streamId, offerId)),
+    remove: (offerId) => void run(() => api.removeOffer(campaignId, streamId, offerId)),
+    bringBack: (offerId) => void run(() => api.bringBackOffer(campaignId, streamId, offerId)),
+    cancel: () => void run(() => api.cancelDraft(campaignId, streamId)),
+  });
 
   return (
     <div className="editor">
@@ -67,8 +100,16 @@ export default function Editor() {
         <ErrorBanner error={error} onClose={() => setError(null)} />
         {loading && !view && <p className="muted">Загрузка…</p>}
         {view && offerStreams.length === 0 && <div className="alert">В кампании нет оффер-потоков</div>}
-        {current && <StreamDetail key={current.id} stream={current} />}
+        {view && current && (
+          <StreamDetail
+            key={current.id}
+            stream={current}
+            busy={loading}
+            actions={actions(view.campaign.id, current.id)}
+          />
+        )}
       </section>
+      <Toast message={toast} onClose={closeToast} />
     </div>
   );
 }

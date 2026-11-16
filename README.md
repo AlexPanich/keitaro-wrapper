@@ -92,3 +92,7 @@ alembic revision --autogenerate -m "описание"     # создать но�
 | POST   | `/api/campaigns`                            | создать кампанию                 |
 | GET    | `/api/keitaro/campaigns?q=`                 | поиск кампании Keitaro (название или ID) |
 | GET    | `/api/editor/campaigns/{id}`                | редактор: потоки кампании и сверка известных офферов (открытие и Fetch) |
+| POST   | `/api/editor/campaigns/{id}/streams/{stream_id}/offers` | черновик: Add оффера `{offer_id}` (архивный — как Bring back) |
+| DELETE | `/api/editor/campaigns/{id}/streams/{stream_id}/offers/{offer_id}` | черновик: Remove оффера в архив |
+| POST   | `/api/editor/campaigns/{id}/streams/{stream_id}/offers/{offer_id}/bring-back` | черновик: вернуть оффер из архива |
+| DELETE | `/api/editor/campaigns/{id}/streams/{stream_id}/draft` | черновик: Cancel — удалить черновик и неопубликованные офферы |
