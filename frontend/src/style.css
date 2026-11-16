@@ -78,3 +78,7 @@ main.main--wide { max-width: 1180px; }
 .hint { display: block; color: #71717a; font-size: 13px; margin-top: 2px; }
 .offer-search { flex: 1; }
 .result { border: 1px solid var(--success); background: var(--success-bg); color: var(--success); padding: 8px 12px; margin-top: 12px; border-radius: 4px; overflow-wrap: anywhere; }
+.share-input { width: 56px; padding: 2px 4px; margin-right: 2px; text-align: right; font: inherit; font-variant-numeric: tabular-nums; }
+.pin { border: none; background: none; padding: 2px 4px; cursor: pointer; opacity: .3; filter: grayscale(1); }
+.pin--on { opacity: 1; filter: none; }
+.pin:disabled { cursor: default; }

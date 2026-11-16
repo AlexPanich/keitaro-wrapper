@@ -261,6 +261,21 @@ export const api = {
     request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/bring-back`, { method: 'POST' }),
   cancelDraft: (campaignId: number, streamId: number) =>
     request<EditorView>(`${streamPath(campaignId, streamId)}/draft`, { method: 'DELETE' }),
+  // Ручная доля, закрепление и «Пересчитать».
+  /** Ручной ввод доли (целое 0..100): закрепляет её и пересчитывает остальные. */
+  setShare: (campaignId: number, streamId: number, offerId: number, share: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/share`, {
+      method: 'PUT',
+      body: JSON.stringify({ share }),
+    }),
+  /** Булавка: закрепляет текущую долю без пересчёта, черновик не создаёт. */
+  pinOffer: (campaignId: number, streamId: number, offerId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/pin`, { method: 'POST' }),
+  /** Снятие закрепления: оффер возвращается в общий пул, доли пересчитываются. */
+  unpinOffer: (campaignId: number, streamId: number, offerId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/pin`, { method: 'DELETE' }),
+  recomputeStream: (campaignId: number, streamId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/recompute`, { method: 'POST' }),
 };
 
 function streamPath(campaignId: number, streamId: number): string {

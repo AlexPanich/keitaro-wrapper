@@ -68,6 +68,12 @@ class OfferAdd(BaseModel):
     offer_id: int
 
 
+class ShareSet(BaseModel):
+    """Тело ручного ввода доли: целое 0..100, ввод закрепляет долю."""
+
+    share: int = Field(ge=0, le=100)
+
+
 class EditorView(BaseModel):
     """Всё, что редактор показывает по кампании после загрузки или Fetch."""
 

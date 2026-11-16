@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import type { ApiError, EditorStream } from '../api';
-import { hasSumProblem, newShareSum, offerLabel, shareSum, streamTypeLabel } from '../editor';
+import { allPinnedSumProblem, hasSumProblem, newShareSum, offerLabel, shareSum, streamTypeLabel } from '../editor';
 import AddOffer from './AddOffer';
 import DraftBar from './DraftBar';
 import OfferTags from './OfferTags';
@@ -15,6 +15,12 @@ export interface StreamActions {
   remove: (offerId: number) => void;
   bringBack: (offerId: number) => void;
   cancel: () => void;
+  /** Ручной ввод доли; `true` — принят. */
+  setShare: (offerId: number, share: number) => Promise<boolean>;
+  /** Ввод доли не целое 0..100 — мгновенный отказ без запроса. */
+  invalidShare: () => void;
+  togglePin: (offerId: number, pinned: boolean) => void;
+  recompute: () => void;
 }
 
 interface Props {
@@ -40,7 +46,15 @@ export default function StreamDetail({ stream, busy, actions }: Props) {
 
       {hasSumProblem(stream) && (
         <div className="alert alert--warn" role="alert">
-          Сумма долей в Keitaro — {shareSum(offers)}, а не 100
+          Сумма долей в Keitaro — {shareSum(offers)}, а не 100{' '}
+          <button type="button" disabled={busy} onClick={actions.recompute}>
+            Пересчитать
+          </button>
+        </div>
+      )}
+      {allPinnedSumProblem(stream) && (
+        <div className="alert alert--warn" role="alert">
+          Все офферы закреплены, сумма ≠ 100 — публикация заблокирована
         </div>
       )}
 
@@ -49,7 +63,15 @@ export default function StreamDetail({ stream, busy, actions }: Props) {
       ) : (
         <>
           <ShareBar offers={offers} />
-          <OffersTable stream={stream} busy={busy} onRemove={actions.remove} onBringBack={actions.bringBack} />
+          <OffersTable
+            stream={stream}
+            busy={busy}
+            onRemove={actions.remove}
+            onBringBack={actions.bringBack}
+            onSetShare={actions.setShare}
+            onInvalidShare={actions.invalidShare}
+            onTogglePin={actions.togglePin}
+          />
         </>
       )}
 
