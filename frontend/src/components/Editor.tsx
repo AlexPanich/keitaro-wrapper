@@ -19,61 +19,67 @@ export default function Editor() {
   const [loading, setLoading] = useState(false);
   const closeToast = useCallback(() => setToast(null), []);
 
-  const load = useCallback(async (campaignId: number) => {
-    setLoading(true);
-    setError(null);
-    setWarning(null);
-    try {
-      setView(await api.loadEditorCampaign(campaignId));
-    } catch (e) {
-      const err = toApiError(e);
-      // Кампания удалена в Keitaro — показывать её прежнее состояние бессмысленно.
-      if (err.code === 'not_found') setView(null);
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  /**
+   * Общая обвязка запроса: индикатор загрузки, сброс плашек ошибки и предупреждения.
+   * Ошибка приводится к `ApiError` и отдаётся `onError`; его результат возвращается вызвавшему.
+   */
+  const request = useCallback(
+    async <T,>(
+      call: () => Promise<T>,
+      onError: (err: ApiError) => void = () => {},
+    ): Promise<{ ok: true; value: T } | { ok: false; error: ApiError }> => {
+      setLoading(true);
+      setError(null);
+      setWarning(null);
+      try {
+        return { ok: true, value: await call() };
+      } catch (e) {
+        const err = toApiError(e);
+        onError(err);
+        return { ok: false, error: err };
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  const load = useCallback(
+    async (campaignId: number) => {
+      const res = await request(
+        () => api.loadEditorCampaign(campaignId),
+        (err) => {
+          // Кампания удалена в Keitaro — показывать её прежнее состояние бессмысленно.
+          if (err.code === 'not_found') setView(null);
+          setError(err);
+        },
+      );
+      if (res.ok) setView(res.value);
+    },
+    [request],
+  );
 
   /**
    * Действие с черновиком: ответ бэка — новое состояние кампании. Отказ без `fields` — всплывающим
    * сообщением, с `fields` — вызвавшему (покажет под полем), остальное — плашкой.
    */
   const run = async (action: () => Promise<EditorView>): Promise<ApiError | null> => {
-    setLoading(true);
-    setError(null);
-    setWarning(null);
-    try {
-      setView(await action());
-      return null;
-    } catch (e) {
-      const err = toApiError(e);
-      if (err.code === 'validation_error') {
-        if (Object.keys(err.fields).length === 0) setToast(err.message);
-      } else {
-        setError(err);
-      }
-      return err;
-    } finally {
-      setLoading(false);
-    }
+    const res = await request(action, (err) => {
+      if (err.code !== 'validation_error') setError(err);
+      else if (Object.keys(err.fields).length === 0) setToast(err.message);
+    });
+    if (!res.ok) return res.error;
+    setView(res.value);
+    return null;
   };
 
   /** Публикация: ошибки показывает окно публикации, поэтому здесь их только возвращаем. */
   const publish = async (campaignId: number, streamId: number, overwrite: boolean): Promise<ApiError | null> => {
-    setLoading(true);
-    setError(null);
-    setWarning(null);
-    try {
-      const result = await api.publishDraft(campaignId, streamId, overwrite);
-      setView(result.view);
-      setWarning(result.warning);
-      return null;
-    } catch (e) {
-      return toApiError(e);
-    } finally {
-      setLoading(false);
-    }
+    const res = await request(() => api.publishDraft(campaignId, streamId, overwrite));
+    if (!res.ok) return res.error;
+    setView(res.value.view);
+    setWarning(res.value.warning);
+    return null;
   };
 
   const open = (campaign: CampaignShort) => {
