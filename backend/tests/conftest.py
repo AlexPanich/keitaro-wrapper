@@ -10,13 +10,40 @@ from app.api.deps import get_keitaro
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
+from app.schemas.error import KeitaroDetails
+from app.services.keitaro import KeitaroError
 
 
 class FakeKeitaro:
-    """Заглушка клиента Keitaro — без сетевых запросов."""
+    """Заглушка клиента Keitaro — без сетевых запросов.
+
+    Данные настраиваются в тесте через фикстуру `keitaro`: `offers`, `campaigns`
+    (`{id: кампания}`) и `streams` (`{campaign_id: [потоки]}`).
+    """
+
+    def __init__(self) -> None:
+        self.offers: list[dict] = [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
+        self.campaigns: dict[int, dict] = {}
+        self.streams: dict[int, list[dict]] = {}
 
     async def list_offers(self) -> list[dict]:
-        return [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
+        return self.offers
+
+    async def list_campaigns(self) -> list[dict]:
+        return list(self.campaigns.values())
+
+    async def get_campaign(self, campaign_id: int) -> dict:
+        if campaign_id not in self.campaigns:
+            # Keitaro отвечает на несуществующую кампанию 404 HTML-страницей nginx.
+            raise KeitaroError(
+                "keitaro_error",
+                "Keitaro вернул ошибку",
+                KeitaroDetails(status=404, method="GET", path=f"/campaigns/{campaign_id}", body=None),
+            )
+        return self.campaigns[campaign_id]
+
+    async def list_streams(self, campaign_id: int) -> list[dict]:
+        return self.streams.get(campaign_id, [])
 
     async def close(self) -> None:
         pass
@@ -52,12 +79,18 @@ async def session(session_factory) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def client(session_factory) -> AsyncIterator[AsyncClient]:
+def keitaro() -> FakeKeitaro:
+    """Фейковый Keitaro, который получат ручки в этом тесте."""
+    return FakeKeitaro()
+
+
+@pytest.fixture
+async def client(session_factory, keitaro) -> AsyncIterator[AsyncClient]:
     async def _get_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as s:
             yield s
 
-    app.dependency_overrides[get_keitaro] = lambda: FakeKeitaro()
+    app.dependency_overrides[get_keitaro] = lambda: keitaro
     app.dependency_overrides[get_session] = _get_session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

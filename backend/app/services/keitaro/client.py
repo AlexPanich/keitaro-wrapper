@@ -135,6 +135,9 @@ class KeitaroClient:
         return await self._request("GET", "/offers")
 
     # --- кампании ---
+    async def list_campaigns(self) -> list[dict]:
+        return await self._request("GET", "/campaigns")
+
     async def get_campaign(self, campaign_id: int) -> dict:
         return await self._request("GET", f"/campaigns/{campaign_id}")
 

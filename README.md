@@ -22,7 +22,7 @@ backend/
     services/
       keitaro/      # HTTP-клиент Keitaro Admin API
       campaign_builder.py
-      offer_editor.py
+      editor.py     # редактор: поиск кампании, загрузка потоков
     main.py
   alembic/          # миграции
   tests/            # pytest
@@ -90,6 +90,5 @@ alembic revision --autogenerate -m "описание"     # создать но�
 | GET    | `/api/keitaro/offers`                       | список офферов из Keitaro        |
 | GET    | `/api/campaigns`                            | кампании, созданные через сервис |
 | POST   | `/api/campaigns`                            | создать кампанию                 |
-| GET    | `/api/campaigns/{keitaro_id}/offers`        | офферы кампании                  |
-| POST   | `/api/campaigns/{keitaro_id}/offers`        | добавить оффер                   |
-| DELETE | `/api/campaigns/{keitaro_id}/offers/{id}`   | удалить оффер                    |
+| GET    | `/api/keitaro/campaigns?q=`                 | поиск кампании Keitaro (название или ID) |
+| GET    | `/api/editor/campaigns/{id}`                | редактор: потоки кампании и сверка известных офферов (открытие и Fetch) |
