@@ -33,7 +33,9 @@ alembic revision --autogenerate -m "описание"   # проверь сге�
 alembic upgrade head
 ```
 
-Новые модели импортируй в `app/models/__init__.py`, иначе autogenerate их не увидит.
+Новые модели импортируй в `app/models/__init__.py`, иначе autogenerate их не увидит. Расхождения моделей и схемы проверяет `alembic check` (на Postgres).
+
+Таблицы: `campaigns` (журнал создаватора, модель `Campaign`), `stream_offers` (известные офферы потока, `KnownOffer`, PK `stream_id`+`offer_id`), `stream_drafts` (черновик потока, `StreamDraft`). У таблиц редактора нет FK на `campaigns`.
 
 ## Тесты
 
@@ -45,4 +47,5 @@ pytest
 - pytest + anyio, async-тесты помечаются `pytestmark = pytest.mark.anyio`.
 - Клиент Keitaro тестируется через `KeitaroClient(transport=httpx.MockTransport(...))` — без сети.
 - Фикстура `client` в `tests/conftest.py` — `httpx.AsyncClient` поверх `ASGITransport`, `get_keitaro` подменён на `FakeKeitaro`. Нужны новые методы Keitaro в тестах — добавляй их в `FakeKeitaro`.
-- БД в тестах сейчас не поднимается; для тестов с БД переопределяй `get_session`.
+- Хранилище в тестах — SQLite в памяти (`aiosqlite`), Postgres не нужен. Фикстура `session_factory` на каждый тест создаёт пустую базу по `Base.metadata.create_all` (не по миграциям); фикстура `client` подменяет `get_session` сессиями из неё. Подготовить данные или проверить результат — фикстура `session` (или `session_factory()` для чистой сессии). Сервисы с хранилищем в юнит-тестах вызывай с той же `session`.
+- Postgres-специфичные типы в моделях объявляй с вариантом для SQLite: `ARRAY(...).with_variant(JSON(), "sqlite")` (см. `Campaign.geo`). Миграции и `alembic check` проверяются только на Postgres, руками.
