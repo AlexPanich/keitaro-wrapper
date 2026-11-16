@@ -157,4 +157,26 @@ describe('CreateCampaign: создание', () => {
     expect(within(result).queryByRole('link')).not.toBeInTheDocument();
     expect(sent).toEqual([expect.objectContaining({ domain_id: null, traffic_source_id: null })]);
   });
+
+  it('create_orphaned → плашка со ссылкой «Открыть в Keitaro»', async () => {
+    const orphaned = {
+      code: 'create_orphaned',
+      message: 'Кампания #101 создана частично и не удалена — удалите её в Keitaro вручную',
+      fields: {},
+      keitaro: { status: 422, method: 'POST', path: '/streams', body: '{"offers":["bad"]}' },
+      keitaro_url: 'https://k.example/admin/#!/campaigns/101',
+    };
+    mockFetch({ ...routes(null, []), '/api/campaigns': () => json(orphaned, 502) });
+    render(<CreateCampaign />);
+
+    await fillAndSubmit();
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent('Кампания #101 создана частично и не удалена — удалите её в Keitaro вручную');
+    expect(within(banner).getByRole('link', { name: 'Открыть в Keitaro' })).toHaveAttribute(
+      'href',
+      'https://k.example/admin/#!/campaigns/101',
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
 });
