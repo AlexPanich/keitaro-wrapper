@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
-import { mockFetch } from '../test/fetchMock';
+import { json, mockFetch } from '../test/fetchMock';
 import CreateCampaign from './CreateCampaign';
 
 const GROUPS = [
@@ -79,5 +80,81 @@ describe('CreateCampaign: справочники', () => {
     render(<CreateCampaign />);
 
     expect(screen.getByRole('searchbox', { name: 'Поиск оффера' })).toBeInTheDocument();
+  });
+});
+
+describe('CreateCampaign: создание', () => {
+  const CREATED = {
+    id: 1,
+    keitaro_id: 101,
+    name: 'wayfinder-test',
+    alias: 'ab12cd34',
+    geo: ['DE', 'FR'],
+    initial_offer_id: 25327,
+    domain_id: 7,
+    group_id: 2,
+    traffic_source_id: null,
+    geo_stream_id: 102,
+    offer_stream_id: 103,
+    created_at: '2026-11-16T10:00:00Z',
+    url: 'https://go.example.com/ab12cd34',
+  };
+
+  function routes(created: unknown, sent: unknown[]) {
+    return {
+      '/api/keitaro/groups': GROUPS,
+      '/api/keitaro/domains': [{ id: 7, name: 'go.example.com' }],
+      '/api/keitaro/traffic_sources': [{ id: 9, name: 'Facebook' }],
+      '/api/keitaro/defaults': { group_id: 2, domain_id: 7, traffic_source_id: null },
+      '/api/keitaro/offers': [{ id: 25327, name: 'Flexacil PE', group: null, state: 'active' }],
+      '/api/campaigns': async (_url: URL, init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)));
+        return json(created, 201);
+      },
+    };
+  }
+
+  async function fillAndSubmit() {
+    await within(await screen.findByRole('combobox', { name: 'Группа' })).findByRole('option', { name: 'Боевые' });
+    await userEvent.type(screen.getByRole('textbox', { name: /Название/ }), 'wayfinder-test');
+    await userEvent.type(screen.getByRole('textbox', { name: /Гео/ }), 'de, fr');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Поиск оффера' }), 'Flexacil');
+    await screen.findByRole('combobox', { name: 'Найденные офферы' });
+    await userEvent.click(screen.getByRole('button', { name: 'Создать' }));
+  }
+
+  it('отправляет все поля формы и показывает alias и URL', async () => {
+    const sent: unknown[] = [];
+    mockFetch(routes(CREATED, sent));
+    render(<CreateCampaign />);
+
+    await fillAndSubmit();
+
+    const result = await screen.findByRole('status');
+    expect(result).toHaveTextContent('Кампания создана');
+    expect(result).toHaveTextContent('ab12cd34');
+    expect(within(result).getByRole('link', { name: 'https://go.example.com/ab12cd34' })).toHaveAttribute(
+      'href',
+      'https://go.example.com/ab12cd34',
+    );
+    expect(sent).toEqual([
+      { name: 'wayfinder-test', geo: 'de, fr', offer_id: 25327, group_id: 2, domain_id: 7, traffic_source_id: null },
+    ]);
+  });
+
+  it('без домена показывает только alias', async () => {
+    const sent: unknown[] = [];
+    mockFetch(routes({ ...CREATED, domain_id: null, url: null }, sent));
+    render(<CreateCampaign />);
+
+    const domain = await screen.findByRole('combobox', { name: 'Домен' });
+    await within(domain).findByRole('option', { name: 'go.example.com' });
+    await userEvent.selectOptions(domain, 'не выбрано');
+    await fillAndSubmit();
+
+    const result = await screen.findByRole('status');
+    expect(result).toHaveTextContent('ab12cd34');
+    expect(within(result).queryByRole('link')).not.toBeInTheDocument();
+    expect(sent).toEqual([expect.objectContaining({ domain_id: null, traffic_source_id: null })]);
   });
 });

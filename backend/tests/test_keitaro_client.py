@@ -154,3 +154,13 @@ async def test_empty_success_returns_none():
     client = make_client(lambda r: httpx.Response(204))
     assert await client.get_campaign(1) is None
     await client.close()
+
+
+async def test_missing_offer_is_404_keitaro_error():
+    # Keitaro отвечает на несуществующий оффер 404 с HTML — сервис отличает его по status.
+    client = make_client(lambda r: httpx.Response(404, text="<html>Not found</html>"))
+    with pytest.raises(KeitaroError) as info:
+        await client.get_offer(99)
+    await client.close()
+    assert info.value.status == 404
+    assert info.value.keitaro.path == "/offers/99"

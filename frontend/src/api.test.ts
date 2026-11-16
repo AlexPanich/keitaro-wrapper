@@ -37,7 +37,7 @@ describe('разбор конверта ошибки', () => {
       ),
     );
 
-    const err = await catchError(api.createCampaign({ name: 'a', geo: 'XX', offer_id: 1 }));
+    const err = await catchError(api.createCampaign({ name: 'a', geo: 'XX', offer_id: 1, group_id: 1, domain_id: null, traffic_source_id: null }));
     expect(err.code).toBe('validation_error');
     expect(err.fields).toEqual({ geo: 'Неизвестные коды: XX' });
     expect(err.keitaro).toBeNull();

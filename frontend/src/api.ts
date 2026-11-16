@@ -85,10 +85,23 @@ export interface EditorView {
   streams: EditorStream[];
 }
 
+/** Форма создаватора; нормализует и проверяет её бэк. */
 export interface CampaignCreate {
   name: string;
+  /** ISO-коды стран через запятую, регистр и пробелы не важны. */
   geo: string;
-  offer_id: number;
+  /** `null` — оффер не выбран (бэк вернёт ошибку поля). */
+  offer_id: number | null;
+  group_id: number;
+  /** `null` — домен не выбран. */
+  domain_id: number | null;
+  /** `null` — источник не выбран. */
+  traffic_source_id: number | null;
+}
+
+/** Результат создаватора: строка журнала и URL кампании, если выбран домен. */
+export interface CampaignCreated extends Campaign {
+  url: string | null;
 }
 
 /**
@@ -214,7 +227,7 @@ export const api = {
   listTrafficSources: () => request<DictionaryItem[]>('/keitaro/traffic_sources'),
   getDefaults: () => request<Defaults>('/keitaro/defaults'),
   createCampaign: (data: CampaignCreate) =>
-    request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+    request<CampaignCreated>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   searchCampaigns: (q: string) =>
     request<CampaignShort[]>(`/keitaro/campaigns?q=${encodeURIComponent(q)}`),
   /** Открытие кампании в редакторе и Fetch — одна и та же загрузка. */

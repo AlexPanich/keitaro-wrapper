@@ -38,7 +38,7 @@ async def raw_client():
 
 
 async def test_pydantic_errors_go_to_fields(client):
-    res = await client.post("/api/campaigns", json={"name": "", "geo": "RUS"})
+    res = await client.post("/api/campaigns", json={"name": "x" * 256, "geo": 1, "group_id": "abc"})
     assert res.status_code == 422
     body = res.json()
     assert set(body) == ENVELOPE_KEYS
@@ -46,9 +46,9 @@ async def test_pydantic_errors_go_to_fields(client):
     assert body["message"] == "Проверьте поля формы"
     assert body["keitaro"] is None
     assert body["fields"] == {
-        "name": "Минимальная длина — 1",
-        "geo": "Максимальная длина — 2",
-        "offer_id": "Обязательное поле",
+        "name": "Максимальная длина — 255",
+        "geo": "Ожидается строка",
+        "group_id": "Ожидается целое число",
     }
 
 
