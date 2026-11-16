@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
-import { api, toApiError, type ApiError, type DictionaryItem } from '../api';
+import { api, toApiError, type ApiError, type CampaignCreated, type DictionaryItem } from '../api';
 import DictionarySelect from './DictionarySelect';
 import ErrorBanner from './ErrorBanner';
 import FieldError from './FieldError';
@@ -15,6 +15,7 @@ interface Dictionaries {
 const EMPTY: Dictionaries = { groups: [], domains: [], trafficSources: [] };
 
 const toValue = (id: number | null) => (id === null ? '' : String(id));
+const toId = (value: string) => (value === '' ? null : Number(value));
 
 export default function CreateCampaign() {
   const [name, setName] = useState('');
@@ -24,7 +25,7 @@ export default function CreateCampaign() {
   const [groupId, setGroupId] = useState('');
   const [domainId, setDomainId] = useState('');
   const [trafficSourceId, setTrafficSourceId] = useState('');
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState<CampaignCreated | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
@@ -41,11 +42,18 @@ export default function CreateCampaign() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    setResult('');
+    setResult(null);
     try {
-      // TODO(#20): отправлять группу, домен и источник (отправку формы делает создаватор)
-      const campaign = await api.createCampaign({ name, geo: geo.toUpperCase(), offer_id: Number(offerId) });
-      setResult(JSON.stringify(campaign, null, 2));
+      setResult(
+        await api.createCampaign({
+          name,
+          geo,
+          offer_id: toId(offerId),
+          group_id: Number(groupId),
+          domain_id: toId(domainId),
+          traffic_source_id: toId(trafficSourceId),
+        }),
+      );
     } catch (err) {
       setError(toApiError(err));
     }
@@ -62,8 +70,8 @@ export default function CreateCampaign() {
           <FieldError text={fields.name} />
         </label>
         <label>
-          Гео (ISO-код)
-          <input value={geo} onChange={(e) => setGeo(e.target.value)} maxLength={2} placeholder="RU" required />
+          Гео (ISO-коды через запятую)
+          <input value={geo} onChange={(e) => setGeo(e.target.value)} placeholder="DE, FR" required />
           <FieldError text={fields.geo} />
         </label>
         <div className="field">
@@ -96,7 +104,19 @@ export default function CreateCampaign() {
         />
         <button type="submit">Создать</button>
       </form>
-      {result && <pre>{result}</pre>}
+      {result && (
+        <div className="result" role="status">
+          Кампания создана: alias <code>{result.alias}</code>
+          {result.url && (
+            <>
+              {' · '}
+              <a href={result.url} target="_blank" rel="noreferrer">
+                {result.url}
+              </a>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
