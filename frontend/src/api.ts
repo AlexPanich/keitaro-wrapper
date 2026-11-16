@@ -19,12 +19,6 @@ export interface Defaults {
   traffic_source_id: number | null;
 }
 
-export interface StreamOffer {
-  offer_id: number;
-  name: string | null;
-  share: number;
-}
-
 export interface Campaign {
   id: number;
   keitaro_id: number;
@@ -39,6 +33,56 @@ export interface Campaign {
   geo_stream_id: number;
   offer_stream_id: number;
   created_at: string;
+}
+
+// --- Редактор (`backend/app/schemas/editor.py`) ---
+
+/** Кампания Keitaro в результатах поиска. */
+export interface CampaignShort {
+  id: number;
+  name: string;
+  /** `active` / `disabled`. */
+  state: string;
+}
+
+export interface EditorCampaign {
+  id: number;
+  name: string;
+  state: string;
+  /** Ссылка «Открыть в Keitaro». */
+  keitaro_url: string;
+}
+
+/** Строка оффера в оффер-потоке (активная или архивная). */
+export interface EditorOffer {
+  offer_id: number;
+  /** `null` — оффера нет в Keitaro («удалён в Keitaro»). */
+  name: string | null;
+  /** Доля в Keitaro; у архивного — `null`. Сумма может быть ≠ 100. */
+  share: number | null;
+  disabled: boolean;
+  deleted: boolean;
+  pinned: boolean;
+}
+
+export type StreamType = 'forced' | 'regular' | 'default';
+
+export interface EditorStream {
+  id: number;
+  name: string;
+  type: StreamType | string;
+  position: number | null;
+  state: string;
+  schema: string;
+  is_offer_stream: boolean;
+  offers: EditorOffer[];
+  archive: EditorOffer[];
+}
+
+/** Состояние кампании в редакторе; потоки — в порядке проверки Keitaro. */
+export interface EditorView {
+  campaign: EditorCampaign;
+  streams: EditorStream[];
 }
 
 export interface CampaignCreate {
@@ -171,12 +215,8 @@ export const api = {
   getDefaults: () => request<Defaults>('/keitaro/defaults'),
   createCampaign: (data: CampaignCreate) =>
     request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
-  campaignOffers: (campaignId: number) => request<StreamOffer[]>(`/campaigns/${campaignId}/offers`),
-  addOffer: (campaignId: number, offerId: number) =>
-    request<StreamOffer[]>(`/campaigns/${campaignId}/offers`, {
-      method: 'POST',
-      body: JSON.stringify({ offer_id: offerId }),
-    }),
-  removeOffer: (campaignId: number, offerId: number) =>
-    request<StreamOffer[]>(`/campaigns/${campaignId}/offers/${offerId}`, { method: 'DELETE' }),
+  searchCampaigns: (q: string) =>
+    request<CampaignShort[]>(`/keitaro/campaigns?q=${encodeURIComponent(q)}`),
+  /** Открытие кампании в редакторе и Fetch — одна и та же загрузка. */
+  loadEditorCampaign: (campaignId: number) => request<EditorView>(`/editor/campaigns/${campaignId}`),
 };

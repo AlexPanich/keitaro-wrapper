@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import CreateCampaign from './components/CreateCampaign';
-import OfferEditor from './components/OfferEditor';
+import Editor from './components/Editor';
 
 type Tab = 'create' | 'edit';
 
@@ -21,7 +21,9 @@ export default function App() {
           </button>
         </nav>
       </header>
-      <main>{tab === 'create' ? <CreateCampaign /> : <OfferEditor />}</main>
+      <main className={tab === 'edit' ? 'main--wide' : undefined}>
+        {tab === 'create' ? <CreateCampaign /> : <Editor />}
+      </main>
     </>
   );
 }
