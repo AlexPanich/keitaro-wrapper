@@ -1,18 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import { api, toApiError, type ApiError, type OfferShort, type StreamOffer } from '../api';
+import { api, toApiError, type ApiError, type StreamOffer } from '../api';
 import ErrorBanner from './ErrorBanner';
-import OfferSelect from './OfferSelect';
+import OfferSearch from './OfferSearch';
 
-export default function OfferEditor({ offers }: { offers: OfferShort[] }) {
+export default function OfferEditor() {
   const [campaignId, setCampaignId] = useState('');
   const [streamOffers, setStreamOffers] = useState<StreamOffer[]>([]);
   const [addOfferId, setAddOfferId] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
-
-  useEffect(() => {
-    if (!addOfferId && offers.length) setAddOfferId(String(offers[0].id));
-  }, [offers, addOfferId]);
 
   const run = async (action: () => Promise<StreamOffer[]>) => {
     setError(null);
@@ -56,8 +52,10 @@ export default function OfferEditor({ offers }: { offers: OfferShort[] }) {
         </tbody>
       </table>
       <div className="row">
-        <OfferSelect offers={offers} value={addOfferId} onChange={setAddOfferId} aria-label="Оффер для добавления" />
-        <button onClick={() => run(() => api.addOffer(id, Number(addOfferId)))}>Добавить оффер</button>
+        <OfferSearch value={addOfferId} onChange={setAddOfferId} />
+        <button disabled={!addOfferId} onClick={() => run(() => api.addOffer(id, Number(addOfferId)))}>
+          Добавить оффер
+        </button>
       </div>
     </section>
   );

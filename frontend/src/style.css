@@ -23,3 +23,6 @@ pre { white-space: pre-wrap; }
 .error-banner dd { margin: 0; min-width: 0; }
 .error-banner pre { margin: 0; overflow-wrap: anywhere; }
 .field-error { display: block; color: var(--danger); font-size: 13px; margin-top: 2px; }
+.field { margin-bottom: 12px; }
+.hint { display: block; color: #71717a; font-size: 13px; margin-top: 2px; }
+.offer-search { flex: 1; }
