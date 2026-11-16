@@ -26,22 +26,10 @@ export interface CampaignCreate {
 }
 
 /**
- * Закрытый список кодов ошибок бэка (`backend/app/core/errors.py`, решение в #15).
+ * Закрытый список кодов ошибок бэка (`backend/app/schemas/error.py`, решение в #15).
  * Новый код добавляется только вместе с обновлением этого списка.
  */
-export type ErrorCode =
-  | 'validation_error'
-  | 'not_found'
-  | 'draft_conflict'
-  | 'alias_exhausted'
-  | 'keitaro_error'
-  | 'keitaro_auth'
-  | 'keitaro_unavailable'
-  | 'create_rolled_back'
-  | 'create_orphaned'
-  | 'internal_error';
-
-const ERROR_CODES: readonly ErrorCode[] = [
+const ERROR_CODES = [
   'validation_error',
   'not_found',
   'draft_conflict',
@@ -52,7 +40,13 @@ const ERROR_CODES: readonly ErrorCode[] = [
   'create_rolled_back',
   'create_orphaned',
   'internal_error',
-];
+] as const;
+
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+function isErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === 'string' && (ERROR_CODES as readonly string[]).includes(value);
+}
 
 export interface KeitaroDetails {
   status: number | null;
@@ -103,7 +97,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function parseErrorResponse(body: unknown): ErrorResponse | null {
   if (!isRecord(body)) return null;
   const { code, message, fields, keitaro } = body;
-  if (typeof code !== 'string' || !ERROR_CODES.includes(code as ErrorCode)) return null;
+  if (!isErrorCode(code)) return null;
   if (typeof message !== 'string') return null;
   const parsedFields: Record<string, string> = {};
   if (isRecord(fields)) {
@@ -120,7 +114,7 @@ export function parseErrorResponse(body: unknown): ErrorResponse | null {
       body: typeof keitaro.body === 'string' ? keitaro.body : null,
     };
   }
-  return { code: code as ErrorCode, message, fields: parsedFields, keitaro: parsedKeitaro };
+  return { code, message, fields: parsedFields, keitaro: parsedKeitaro };
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
