@@ -31,6 +31,20 @@ main.main--wide { max-width: 1180px; }
 .tag--bad { background: #fecaca; color: #7f1d1d; }
 .alert { padding: 8px 10px; border-radius: 6px; margin: 8px 0; background: #f4f4f5; border: 1px solid var(--border); }
 .alert--warn { background: #fffbeb; border-color: #f59e0b; }
+.alert--bad { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+button.primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); border-radius: 4px; }
+button.danger { background: var(--danger); color: #fff; border: 1px solid var(--danger); border-radius: 4px; }
+button.primary:disabled, button.danger:disabled { opacity: 0.5; cursor: default; }
+.modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.modal { background: #fff; border-radius: 8px; padding: 16px 20px; width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+.modal h3 { margin: 0 0 8px; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.diff { list-style: none; padding: 0; margin: 8px 0; font-size: 14px; }
+.diff li { padding: 3px 0; }
+.diff__added { color: var(--success); }
+.diff__changed { font-weight: 600; }
+.diff__unchanged { color: #71717a; }
+.diff__removed { color: var(--danger); }
 .link { background: none; border: none; color: var(--accent); padding: 2px 0; }
 .search { position: relative; }
 .search input { margin: 0; }
@@ -70,6 +84,7 @@ main.main--wide { max-width: 1180px; }
 .add-offer .row { align-items: flex-start; }
 .add-offer .row > button { margin-top: 4px; }
 .draft-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px -16px -16px; padding: 10px 16px; background: #fefce8; border-top: 1px solid #eab308; border-radius: 0 0 8px 8px; }
+.draft-bar__actions { display: flex; gap: 8px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; padding: 8px 14px; border-radius: 6px; background: #27272a; color: #fff; font-size: 14px; box-shadow: 0 4px 12px #0003; }
 .archive { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .archive__list { list-style: none; margin: 4px 0 0; padding: 0; color: #71717a; }

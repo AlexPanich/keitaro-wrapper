@@ -24,6 +24,11 @@ class FakeKeitaro:
     что ушло в Keitaro. Ответы ``create_campaign`` и ``create_stream`` можно подменить
     очередями ``campaign_responses`` / ``stream_responses`` (исключение в очереди бросается).
     ``delete_error`` — исключение, которым падает ``delete_campaign`` (неудачная компенсация).
+
+    ``update_stream`` сохраняет офферы в ``streams``. Очередь ``update_responses`` подменяет
+    исход: исключение бросается, список ``[{offer_id, share}]`` — то, что Keitaro сохранит вместо
+    отправленного. Очередь ``list_streams_responses`` подменяет ответы ``list_streams``:
+    исключение бросается, ``None`` — обычный ответ из ``streams``.
     """
 
     def __init__(self) -> None:
@@ -37,6 +42,8 @@ class FakeKeitaro:
         self.campaign_responses: list[dict | Exception] = []
         self.stream_responses: list[dict | Exception] = []
         self.delete_error: Exception | None = None
+        self.update_responses: list[list[dict] | Exception] = []
+        self.list_streams_responses: list[Exception | None] = []
         self._next_id = 100
 
     def _id(self) -> int:
@@ -102,7 +109,35 @@ class FakeKeitaro:
 
     async def list_streams(self, campaign_id: int) -> list[dict]:
         self.calls.append(("list_streams", campaign_id))
+        if self.list_streams_responses:
+            response = self.list_streams_responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
         return self.streams.get(campaign_id, [])
+
+    async def update_stream(self, stream_id: int, payload: dict) -> dict:
+        self.calls.append(("update_stream", (stream_id, payload)))
+        saved = payload["offers"]
+        if self.update_responses:
+            response = self.update_responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            saved = response
+        for streams in self.streams.values():
+            for s in streams:
+                if s["id"] == stream_id:
+                    # Keitaro отвечает связями поток–оффер со своими id и состоянием.
+                    s["offers"] = [
+                        {"id": 9000 + o["offer_id"], "stream_id": stream_id, "offer_id": o["offer_id"],
+                         "share": o["share"], "state": "active"}
+                        for o in saved
+                    ]
+                    return s
+        raise KeitaroError(
+            "keitaro_error",
+            "Keitaro вернул ошибку",
+            KeitaroDetails(status=404, method="PUT", path=f"/streams/{stream_id}", body=None),
+        )
 
     async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
         self.calls.append(("list_groups", group_type))

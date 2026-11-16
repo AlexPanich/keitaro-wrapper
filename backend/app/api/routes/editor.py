@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_keitaro
 from app.db.session import get_session
-from app.schemas.editor import EditorView, OfferAdd, ShareSet
+from app.schemas.editor import EditorView, OfferAdd, PublishRequest, PublishResult, ShareSet
 from app.services import editor
 from app.services.keitaro import KeitaroClient
 
@@ -120,3 +120,15 @@ async def cancel_draft(
 ):
     """Cancel: удаляет черновик потока и его неопубликованные офферы."""
     return await editor.cancel_draft(session, keitaro, campaign_id, stream_id)
+
+
+@router.post(f"{STREAM}/publish", response_model=PublishResult)
+async def publish_draft(
+    campaign_id: int,
+    stream_id: int,
+    data: PublishRequest,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Публикация черновика: проверка, сверка с `base_offers`, PUT, повторное чтение потока."""
+    return await editor.publish_draft(session, keitaro, campaign_id, stream_id, overwrite=data.overwrite)

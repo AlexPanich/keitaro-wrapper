@@ -32,6 +32,7 @@ function stream(extra: Partial<EditorStream> = {}): EditorStream {
     schema: 'landings',
     is_offer_stream: true,
     draft: false,
+    conflict: false,
     offers: [offer(1, 33), offer(2, 33), offer(3, 34)],
     archive: [],
     ...extra,
@@ -42,6 +43,7 @@ function view(s: EditorStream): EditorView {
   return {
     campaign: { id: 500, name: 'Main campaign', state: 'active', keitaro_url: 'https://k.example/admin/#!/campaigns/500' },
     streams: [s],
+    notices: [],
   };
 }
 

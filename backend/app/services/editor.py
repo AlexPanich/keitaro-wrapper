@@ -9,7 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.errors import VALIDATION_MESSAGE, ApiError
 from app.models import KnownOffer, StreamDraft
-from app.schemas.editor import CampaignShort, EditorCampaign, EditorOffer, EditorStream, EditorView
+from app.schemas.editor import (
+    CampaignShort,
+    EditorCampaign,
+    EditorOffer,
+    EditorStream,
+    EditorView,
+    PublishResult,
+)
 from app.services.dictionaries import matches
 from app.services.keitaro import KeitaroClient, KeitaroError
 from app.services.shares import recompute
@@ -51,6 +58,11 @@ def _links(stream: dict) -> list[dict]:
 def _same_shares(a: list[dict], b: list[dict]) -> bool:
     # «Совпало с Keitaro» — тот же состав с теми же долями; порядок не важен.
     return {o["offer_id"]: o["share"] for o in a} == {o["offer_id"]: o["share"] for o in b}
+
+
+def _is_conflict(draft: StreamDraft, stream: dict) -> bool:
+    # Поток в Keitaro изменился после создания черновика: сравниваем со снимком `base_offers`.
+    return not _same_shares(draft.base_offers, _links(stream))
 
 
 async def _get_campaign(keitaro: KeitaroClient, campaign_id: int) -> dict:
@@ -167,6 +179,7 @@ def _stream_view(
         stream_schema=stream.get("schema") or "",
         is_offer_stream=is_offer_stream,
         draft=draft is not None,
+        conflict=draft is not None and _is_conflict(draft, stream),
         offers=offers,
         archive=archive,
     )
@@ -175,14 +188,22 @@ def _stream_view(
 async def _build_view(
     session: AsyncSession, campaign: dict, streams: list[dict], catalog: dict[int, dict]
 ) -> EditorView:
-    """Сверяет хранилище с Keitaro, убирает черновики, совпавшие с Keitaro, и собирает ответ."""
+    """Сверяет хранилище с Keitaro, убирает черновики, совпавшие с Keitaro, и собирает ответ.
+
+    Черновик потока, который пропал из Keitaro или перестал быть оффер-потоком, удаляется
+    с сообщением уровня кампании; известные офферы такого потока остаются.
+    """
     offer_streams = [s for s in streams if _is_offer_stream(s)]
-    drafts = {
-        d.stream_id: d
-        for d in await session.scalars(
-            select(StreamDraft).where(StreamDraft.stream_id.in_([s["id"] for s in offer_streams]))
-        )
-    }
+    offer_stream_ids = {s["id"] for s in offer_streams}
+    drafts: dict[int, StreamDraft] = {}
+    notices: list[str] = []
+    for d in await session.scalars(select(StreamDraft).where(StreamDraft.campaign_id == campaign["id"])):
+        if d.stream_id in offer_stream_ids:
+            drafts[d.stream_id] = d
+        else:
+            await session.delete(d)
+            name = d.stream_name or f"#{d.stream_id}"
+            notices.append(f"Поток «{name}» удалён в Keitaro, неопубликованные правки потеряны")
     known = await _sync_known_offers(session, campaign["id"], offer_streams, drafts)
     for s in offer_streams:
         draft = drafts.get(s["id"])
@@ -199,6 +220,7 @@ async def _build_view(
             keitaro_url=keitaro_campaign_url(campaign["id"]),
         ),
         streams=[_stream_view(s, catalog, known, drafts.get(s["id"])) for s in streams],
+        notices=notices,
     )
 
 
@@ -249,7 +271,9 @@ async def _edit(
     if draft:
         draft.offers = offers
     else:
-        session.add(StreamDraft(stream_id=stream_id, campaign_id=campaign_id, offers=offers, base_offers=_links(stream)))
+        draft = StreamDraft(stream_id=stream_id, campaign_id=campaign_id, offers=offers, base_offers=_links(stream))
+        session.add(draft)
+    draft.stream_name = stream.get("name") or ""
     await session.flush()
     return await _build_view(session, campaign, streams, catalog)
 
@@ -401,3 +425,70 @@ async def cancel_draft(session: AsyncSession, keitaro: KeitaroClient, campaign_i
     campaign, streams, catalog = await _read_keitaro(keitaro, campaign_id)
     await _drop_draft(session, stream_id)
     return await _build_view(session, campaign, streams, catalog)
+
+
+# --- публикация ---
+
+CONFLICT_MESSAGE = "Поток в Keitaro изменился после начала правок"
+REREAD_FAILED_MESSAGE = "Опубликовано, но не удалось перечитать поток — нажмите Fetch"
+MISMATCH_MESSAGE = "Keitaro сохранил поток не так, как отправлено"
+
+
+def _check_publishable(offers: list[dict], catalog: dict[int, dict]) -> None:
+    """Черновик можно публиковать: доли целые 0..100 с суммой 100, есть активный оффер,
+    все офферы есть в `GET /offers`. Иначе — `validation_error`."""
+    if not offers:
+        raise _refuse("В потоке должен остаться хотя бы один оффер")
+    shares = [o["share"] for o in offers]
+    if any(isinstance(s, bool) or not isinstance(s, int) or not 0 <= s <= 100 for s in shares):
+        raise _refuse("Доля — целое от 0 до 100")
+    if sum(shares) != 100:
+        raise _refuse(f"Сумма долей — {sum(shares)}%, а должна быть 100%")
+    missing = next((o["offer_id"] for o in offers if o["offer_id"] not in catalog), None)
+    if missing is not None:
+        raise _refuse(f"Оффер #{missing} не найден в Keitaro")
+
+
+async def publish_draft(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, *, overwrite: bool = False
+) -> PublishResult:
+    """Публикует черновик потока в Keitaro.
+
+    Шаги: проверка черновика → сверка потока с `base_offers` (расхождение — `draft_conflict`,
+    если нет `overwrite`) → `PUT /streams/{id}` → повторное чтение и сверка с отправленным →
+    удаление черновика. Сбой PUT пробрасывается как ошибка Keitaro, черновик остаётся.
+    """
+    campaign, streams, catalog = await _read_keitaro(keitaro, campaign_id)
+    stream = next((s for s in streams if s["id"] == stream_id and _is_offer_stream(s)), None)
+    if stream is None:
+        raise ApiError("not_found", f"Оффер-поток #{stream_id} не найден в кампании")
+    draft = await session.get(StreamDraft, stream_id)
+    if draft is None:
+        raise _refuse("Нет неопубликованных изменений")
+    sent = [{"offer_id": o["offer_id"], "share": o["share"]} for o in draft.offers]
+    _check_publishable(sent, catalog)
+    if _is_conflict(draft, stream) and not overwrite:
+        raise ApiError("draft_conflict", CONFLICT_MESSAGE)
+
+    saved = await keitaro.update_stream(stream_id, {"offers": sent})
+
+    # PUT прошёл: офферы черновика опубликованы, сам черновик больше не нужен.
+    for k in await session.scalars(select(KnownOffer).where(KnownOffer.stream_id == stream_id)):
+        if _is_active(sent, k.offer_id):
+            k.published = True
+    await session.delete(draft)
+    await session.flush()
+
+    warning = None
+    try:
+        streams = sorted(await keitaro.list_streams(campaign_id), key=_check_order)
+    except KeitaroError:
+        # Показываем поток по ответу PUT (а без офферов в нём — отправленный состав).
+        warning = REREAD_FAILED_MESSAGE
+        after_put = {**stream, "offers": sent, **(saved if isinstance(saved, dict) else {})}
+        streams = [after_put if s["id"] == stream_id else s for s in streams]
+    else:
+        reread = next((s for s in streams if s["id"] == stream_id), None)
+        if reread is None or not _same_shares(_links(reread), sent):
+            warning = MISMATCH_MESSAGE
+    return PublishResult(view=await _build_view(session, campaign, streams, catalog), warning=warning)

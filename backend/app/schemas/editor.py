@@ -56,6 +56,8 @@ class EditorStream(BaseModel):
     is_offer_stream: bool
     # У потока есть черновик: `offers` и `archive` показывают состав черновика.
     draft: bool
+    # Поток в Keitaro изменился после начала правок: состав или доли не совпадают с `base_offers`.
+    conflict: bool = False
     # Активные офферы в порядке потока (черновика, если он есть).
     offers: list[EditorOffer]
     # Архивные офферы, по id.
@@ -80,3 +82,20 @@ class EditorView(BaseModel):
     campaign: EditorCampaign
     # В порядке проверки Keitaro: forced → regular (position, id) → default.
     streams: list[EditorStream]
+    # Сообщения уровня кампании, например о потоке с черновиком, удалённом в Keitaro.
+    notices: list[str] = []
+
+
+class PublishRequest(BaseModel):
+    """Тело публикации черновика."""
+
+    # Явное согласие перезаписать поток, изменившийся в Keitaro после начала правок.
+    overwrite: bool = False
+
+
+class PublishResult(BaseModel):
+    """Итог публикации: состояние кампании и, если что-то пошло не так после PUT, предупреждение."""
+
+    view: EditorView
+    # Жёлтая плашка: PUT прошёл, но поток не удалось перечитать или Keitaro сохранил его иначе.
+    warning: str | None = None

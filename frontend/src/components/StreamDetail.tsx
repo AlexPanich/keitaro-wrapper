@@ -1,11 +1,20 @@
 import { useState } from 'react';
 
 import type { ApiError, EditorStream } from '../api';
-import { allPinnedSumProblem, hasSumProblem, newShareSum, offerLabel, shareSum, streamTypeLabel } from '../editor';
+import {
+  allPinnedSumProblem,
+  canPublish,
+  hasSumProblem,
+  newShareSum,
+  offerLabel,
+  shareSum,
+  streamTypeLabel,
+} from '../editor';
 import AddOffer from './AddOffer';
 import DraftBar from './DraftBar';
 import OfferTags from './OfferTags';
 import OffersTable from './OffersTable';
+import ReviewDialog, { CONFLICT_MESSAGE } from './ReviewDialog';
 import ShareBar from './ShareBar';
 import Tag from './Tag';
 
@@ -15,6 +24,8 @@ export interface StreamActions {
   remove: (offerId: number) => void;
   bringBack: (offerId: number) => void;
   cancel: () => void;
+  /** Публикация черновика; `null` — опубликовано. */
+  publish: (overwrite: boolean) => Promise<ApiError | null>;
   /** Ручной ввод доли; `true` — принят. */
   setShare: (offerId: number, share: number) => Promise<boolean>;
   /** Ввод доли не целое 0..100 — мгновенный отказ без запроса. */
@@ -32,6 +43,7 @@ interface Props {
 /** Выбранный оффер-поток: полоса долей, таблица «В Keitaro → Станет», Add, архив и панель черновика. */
 export default function StreamDetail({ stream, busy, actions }: Props) {
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const { offers, archive } = stream;
 
   return (
@@ -43,6 +55,12 @@ export default function StreamDetail({ stream, busy, actions }: Props) {
       <div className="muted">
         stream_id {stream.id} · {streamTypeLabel(stream.type)} · позиция {stream.position ?? '—'}
       </div>
+
+      {stream.conflict && (
+        <div className="alert alert--warn" role="alert">
+          {CONFLICT_MESSAGE}
+        </div>
+      )}
 
       {hasSumProblem(stream) && (
         <div className="alert alert--warn" role="alert">
@@ -108,7 +126,28 @@ export default function StreamDetail({ stream, busy, actions }: Props) {
         </div>
       )}
 
-      {stream.draft && <DraftBar sum={newShareSum(offers)} busy={busy} onCancel={actions.cancel} />}
+      {stream.draft && (
+        <DraftBar
+          sum={newShareSum(offers)}
+          busy={busy}
+          canPublish={canPublish(stream)}
+          onCancel={actions.cancel}
+          onReview={() => setReviewing(true)}
+        />
+      )}
+
+      {reviewing && stream.draft && (
+        <ReviewDialog
+          stream={stream}
+          busy={busy}
+          onBack={() => setReviewing(false)}
+          onPublish={async (overwrite) => {
+            const err = await actions.publish(overwrite);
+            if (!err) setReviewing(false);
+            return err;
+          }}
+        />
+      )}
     </div>
   );
 }
