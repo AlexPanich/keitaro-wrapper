@@ -44,6 +44,29 @@ export function hasSumProblem(stream: EditorStream): boolean {
   return !stream.draft && stream.offers.length > 0 && shareSum(stream.offers) !== 100;
 }
 
+/** Черновик можно публиковать: есть активный оффер и сумма долей «Станет» — 100. */
+export function canPublish(stream: EditorStream): boolean {
+  return stream.offers.length > 0 && newShareSum(stream.offers) === 100;
+}
+
+/** Строка окна публикации: что станет с оффером в Keitaro. */
+export type DiffKind = 'added' | 'changed' | 'unchanged' | 'removed';
+
+export interface DiffLine {
+  kind: DiffKind;
+  offer: EditorOffer;
+}
+
+/** Изменения черновика относительно Keitaro: активные офферы по порядку, затем убранные. */
+export function reviewDiff(stream: EditorStream): DiffLine[] {
+  const active = stream.offers.map((offer): DiffLine => {
+    if (offer.share === null) return { kind: 'added', offer };
+    return { kind: offer.share === offer.new_share ? 'unchanged' : 'changed', offer };
+  });
+  const removed = removedInDraft(stream).map((offer): DiffLine => ({ kind: 'removed', offer }));
+  return [...active, ...removed];
+}
+
 /**
  * Точка у потока в списке: серый — не оффер-поток, жёлтый — черновик,
  * красный — требует внимания, зелёный — опубликован.

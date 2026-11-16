@@ -81,6 +81,8 @@ export interface EditorStream {
   is_offer_stream: boolean;
   /** Есть черновик: `offers` и `archive` показывают его состав. */
   draft: boolean;
+  /** Поток в Keitaro изменился после начала правок (не совпадает со снимком черновика). */
+  conflict: boolean;
   /** Активные офферы в порядке потока (черновика, если он есть). */
   offers: EditorOffer[];
   archive: EditorOffer[];
@@ -90,6 +92,14 @@ export interface EditorStream {
 export interface EditorView {
   campaign: EditorCampaign;
   streams: EditorStream[];
+  /** Сообщения уровня кампании (например, поток с черновиком удалён в Keitaro). */
+  notices: string[];
+}
+
+/** Итог публикации черновика; `warning` — жёлтая плашка, если что-то не так после PUT. */
+export interface PublishResult {
+  view: EditorView;
+  warning: string | null;
 }
 
 /** Форма создаватора; нормализует и проверяет её бэк. */
@@ -261,6 +271,12 @@ export const api = {
     request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/bring-back`, { method: 'POST' }),
   cancelDraft: (campaignId: number, streamId: number) =>
     request<EditorView>(`${streamPath(campaignId, streamId)}/draft`, { method: 'DELETE' }),
+  /** Публикация черновика; `overwrite` — явная перезапись потока, изменившегося в Keitaro. */
+  publishDraft: (campaignId: number, streamId: number, overwrite: boolean) =>
+    request<PublishResult>(`${streamPath(campaignId, streamId)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ overwrite }),
+    }),
 };
 
 function streamPath(campaignId: number, streamId: number): string {

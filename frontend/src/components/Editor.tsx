@@ -14,12 +14,15 @@ export default function Editor() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Жёлтая плашка после публикации (PUT прошёл, но повторное чтение не удалось или не совпало).
+  const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const closeToast = useCallback(() => setToast(null), []);
 
   const load = useCallback(async (campaignId: number) => {
     setLoading(true);
     setError(null);
+    setWarning(null);
     try {
       setView(await api.loadEditorCampaign(campaignId));
     } catch (e) {
@@ -39,6 +42,7 @@ export default function Editor() {
   const run = async (action: () => Promise<EditorView>): Promise<ApiError | null> => {
     setLoading(true);
     setError(null);
+    setWarning(null);
     try {
       setView(await action());
       return null;
@@ -50,6 +54,23 @@ export default function Editor() {
         setError(err);
       }
       return err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Публикация: ошибки показывает окно публикации, поэтому здесь их только возвращаем. */
+  const publish = async (campaignId: number, streamId: number, overwrite: boolean): Promise<ApiError | null> => {
+    setLoading(true);
+    setError(null);
+    setWarning(null);
+    try {
+      const result = await api.publishDraft(campaignId, streamId, overwrite);
+      setView(result.view);
+      setWarning(result.warning);
+      return null;
+    } catch (e) {
+      return toApiError(e);
     } finally {
       setLoading(false);
     }
@@ -70,6 +91,7 @@ export default function Editor() {
     remove: (offerId) => void run(() => api.removeOffer(campaignId, streamId, offerId)),
     bringBack: (offerId) => void run(() => api.bringBackOffer(campaignId, streamId, offerId)),
     cancel: () => void run(() => api.cancelDraft(campaignId, streamId)),
+    publish: (overwrite) => publish(campaignId, streamId, overwrite),
   });
 
   return (
@@ -98,6 +120,16 @@ export default function Editor() {
       </aside>
       <section className="editor__main">
         <ErrorBanner error={error} onClose={() => setError(null)} />
+        {view?.notices.map((notice) => (
+          <div key={notice} className="alert alert--warn" role="alert">
+            {notice}
+          </div>
+        ))}
+        {warning && (
+          <div className="alert alert--warn" role="alert">
+            {warning}
+          </div>
+        )}
         {loading && !view && <p className="muted">Загрузка…</p>}
         {view && offerStreams.length === 0 && <div className="alert">В кампании нет оффер-потоков</div>}
         {view && current && (
