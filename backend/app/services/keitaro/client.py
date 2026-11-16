@@ -135,7 +135,7 @@ class KeitaroClient:
         return await self._request("GET", "/offers")
 
     async def get_offer(self, offer_id: int) -> dict:
-        # Несуществующий оффер — 404 (HTML), т. е. KeitaroError со status == 404.
+        """Один оффер; если его нет, Keitaro отвечает 404 с HTML."""
         return await self._request("GET", f"/offers/{offer_id}")
 
     # --- кампании ---
@@ -147,6 +147,10 @@ class KeitaroClient:
 
     async def create_campaign(self, payload: dict) -> dict:
         return await self._request("POST", "/campaigns", json=payload)
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        """Перенос кампании в архив (alias освобождается). Ответ — 200 и массив кампаний, он не нужен."""
+        await self._request("DELETE", f"/campaigns/{campaign_id}")
 
     # --- потоки ---
     async def list_streams(self, campaign_id: int) -> list[dict]:

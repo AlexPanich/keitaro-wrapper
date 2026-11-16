@@ -92,10 +92,23 @@ export interface EditorView {
   streams: EditorStream[];
 }
 
+/** Форма создаватора; нормализует и проверяет её бэк. */
 export interface CampaignCreate {
   name: string;
+  /** ISO-коды стран через запятую, регистр и пробелы не важны. */
   geo: string;
-  offer_id: number;
+  /** `null` — оффер не выбран (бэк вернёт ошибку поля). */
+  offer_id: number | null;
+  group_id: number;
+  /** `null` — домен не выбран. */
+  domain_id: number | null;
+  /** `null` — источник не выбран. */
+  traffic_source_id: number | null;
+}
+
+/** Результат создаватора: строка журнала и URL кампании, если выбран домен. */
+export interface CampaignCreated extends Campaign {
+  url: string | null;
 }
 
 /**
@@ -134,6 +147,8 @@ export interface ErrorResponse {
   message: string;
   fields: Record<string, string>;
   keitaro: KeitaroDetails | null;
+  /** Ссылка на кампанию в админке Keitaro, если пользователю нужно доделать что-то там руками (`create_orphaned`). */
+  keitaro_url: string | null;
 }
 
 export const SERVICE_UNAVAILABLE = 'Сервис недоступен, попробуйте ещё раз';
@@ -146,6 +161,7 @@ export class ApiError extends Error {
   readonly status: number | null;
   readonly fields: Record<string, string>;
   readonly keitaro: KeitaroDetails | null;
+  readonly keitaroUrl: string | null;
 
   constructor(envelope: ErrorResponse | null, status: number | null) {
     super(envelope?.message ?? SERVICE_UNAVAILABLE);
@@ -154,6 +170,7 @@ export class ApiError extends Error {
     this.status = status;
     this.fields = envelope?.fields ?? {};
     this.keitaro = envelope?.keitaro ?? null;
+    this.keitaroUrl = envelope?.keitaro_url ?? null;
   }
 }
 
@@ -169,7 +186,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Разбирает тело ответа как конверт; `null`, если это не он. */
 export function parseErrorResponse(body: unknown): ErrorResponse | null {
   if (!isRecord(body)) return null;
-  const { code, message, fields, keitaro } = body;
+  const { code, message, fields, keitaro, keitaro_url } = body;
   if (!isErrorCode(code)) return null;
   if (typeof message !== 'string') return null;
   const parsedFields: Record<string, string> = {};
@@ -187,7 +204,13 @@ export function parseErrorResponse(body: unknown): ErrorResponse | null {
       body: typeof keitaro.body === 'string' ? keitaro.body : null,
     };
   }
-  return { code, message, fields: parsedFields, keitaro: parsedKeitaro };
+  return {
+    code,
+    message,
+    fields: parsedFields,
+    keitaro: parsedKeitaro,
+    keitaro_url: typeof keitaro_url === 'string' ? keitaro_url : null,
+  };
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -221,7 +244,7 @@ export const api = {
   listTrafficSources: () => request<DictionaryItem[]>('/keitaro/traffic_sources'),
   getDefaults: () => request<Defaults>('/keitaro/defaults'),
   createCampaign: (data: CampaignCreate) =>
-    request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+    request<CampaignCreated>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   searchCampaigns: (q: string) =>
     request<CampaignShort[]>(`/keitaro/campaigns?q=${encodeURIComponent(q)}`),
   /** Открытие кампании в редакторе и Fetch — одна и та же загрузка. */

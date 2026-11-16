@@ -13,6 +13,7 @@ const keitaroError = new ApiError(
     message: 'Проверьте KEITARO_API_KEY в .env',
     fields: {},
     keitaro: { status: 401, method: 'GET', path: '/offers', body: '{"error":"Unauthorized"}' },
+    keitaro_url: null,
   },
   502,
 );

@@ -11,7 +11,7 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
 from app.schemas.error import KeitaroDetails
-from app.services.keitaro import KeitaroError
+from app.services.keitaro.client import HTML_BODY, KeitaroError
 
 
 class FakeKeitaro:
@@ -19,6 +19,11 @@ class FakeKeitaro:
 
     Тест подменяет данные через фикстуру `keitaro`: списки `offers`, `groups`, `domains`,
     `traffic_sources`, а также `campaigns` (`{id: кампания}`) и `streams` (`{campaign_id: [потоки]}`).
+
+    Каждый вызов пишется в ``calls`` как ``(метод, аргумент)`` — по нему тест проверяет,
+    что ушло в Keitaro. Ответы ``create_campaign`` и ``create_stream`` можно подменить
+    очередями ``campaign_responses`` / ``stream_responses`` (исключение в очереди бросается).
+    ``delete_error`` — исключение, которым падает ``delete_campaign`` (неудачная компенсация).
     """
 
     def __init__(self) -> None:
@@ -28,25 +33,64 @@ class FakeKeitaro:
         self.traffic_sources: list[dict] = []
         self.campaigns: dict[int, dict] = {}
         self.streams: dict[int, list[dict]] = {}
+        self.calls: list[tuple[str, object]] = []
+        self.campaign_responses: list[dict | Exception] = []
+        self.stream_responses: list[dict | Exception] = []
+        self.delete_error: Exception | None = None
+        self._next_id = 100
+
+    def _id(self) -> int:
+        self._next_id += 1
+        return self._next_id
+
+    def writes(self) -> list[tuple[str, object]]:
+        """Изменяющие вызовы (всё, кроме чтения)."""
+        return [c for c in self.calls if not c[0].startswith(("list_", "get_"))]
 
     async def list_offers(self) -> list[dict]:
+        self.calls.append(("list_offers", None))
         return self.offers
 
     async def get_offer(self, offer_id: int) -> dict:
-        for offer in self.offers:
-            if offer["id"] == offer_id:
-                return offer
-        # Несуществующий оффер Keitaro отдаёт 404 HTML-страницей nginx.
+        self.calls.append(("get_offer", offer_id))
+        for o in self.offers:
+            if o["id"] == offer_id:
+                return o
         raise KeitaroError(
             "keitaro_error",
             "Keitaro вернул ошибку",
-            KeitaroDetails(status=404, method="GET", path=f"/offers/{offer_id}", body=None),
+            KeitaroDetails(status=404, method="GET", path=f"/offers/{offer_id}", body=HTML_BODY),
         )
 
+    @staticmethod
+    def _queued(queue: list[dict | Exception]) -> dict | None:
+        if not queue:
+            return None
+        response = queue.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    async def create_campaign(self, payload: dict) -> dict:
+        self.calls.append(("create_campaign", payload))
+        return self._queued(self.campaign_responses) or {"id": self._id(), **payload, "state": "active"}
+
+    async def create_stream(self, payload: dict) -> dict:
+        self.calls.append(("create_stream", payload))
+        return self._queued(self.stream_responses) or {"id": self._id(), **payload}
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        self.calls.append(("delete_campaign", campaign_id))
+        if self.delete_error is not None:
+            raise self.delete_error
+        self.campaigns.pop(campaign_id, None)
+
     async def list_campaigns(self) -> list[dict]:
+        self.calls.append(("list_campaigns", None))
         return list(self.campaigns.values())
 
     async def get_campaign(self, campaign_id: int) -> dict:
+        self.calls.append(("get_campaign", campaign_id))
         if campaign_id not in self.campaigns:
             # Keitaro отвечает на несуществующую кампанию 404 HTML-страницей nginx.
             raise KeitaroError(
@@ -57,16 +101,20 @@ class FakeKeitaro:
         return self.campaigns[campaign_id]
 
     async def list_streams(self, campaign_id: int) -> list[dict]:
+        self.calls.append(("list_streams", campaign_id))
         return self.streams.get(campaign_id, [])
 
     async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
+        self.calls.append(("list_groups", group_type))
         assert group_type == "campaigns"
         return self.groups
 
     async def list_domains(self) -> list[dict]:
+        self.calls.append(("list_domains", None))
         return self.domains
 
     async def list_traffic_sources(self) -> list[dict]:
+        self.calls.append(("list_traffic_sources", None))
         return self.traffic_sources
 
     async def close(self) -> None:

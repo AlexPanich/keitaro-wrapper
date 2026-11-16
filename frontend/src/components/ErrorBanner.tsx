@@ -5,10 +5,13 @@ interface Props {
   onClose: () => void;
 }
 
-/** Постоянная красная плашка ошибки операции: текст, свёрнутые «Подробности» от Keitaro и крестик. */
+/**
+ * Постоянная красная плашка ошибки операции: текст, ссылка «Открыть в Keitaro» (если бэк её дал),
+ * свёрнутые «Подробности» от Keitaro и крестик.
+ */
 export default function ErrorBanner({ error, onClose }: Props) {
   if (!error) return null;
-  const { keitaro } = error;
+  const { keitaro, keitaroUrl } = error;
 
   return (
     <div className="error-banner" role="alert">
@@ -18,6 +21,11 @@ export default function ErrorBanner({ error, onClose }: Props) {
           ×
         </button>
       </div>
+      {keitaroUrl && (
+        <a href={keitaroUrl} target="_blank" rel="noreferrer">
+          Открыть в Keitaro
+        </a>
+      )}
       {keitaro && (
         <details>
           <summary>Подробности</summary>

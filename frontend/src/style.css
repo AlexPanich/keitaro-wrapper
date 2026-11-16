@@ -1,4 +1,4 @@
-:root { --bg: #f7f7f8; --fg: #1a1a1a; --accent: #2b6cb0; --border: #d4d4d8; --danger: #c53030; --danger-bg: #fff5f5; }
+:root { --bg: #f7f7f8; --fg: #1a1a1a; --accent: #2b6cb0; --border: #d4d4d8; --danger: #c53030; --danger-bg: #fff5f5; --success: #276749; --success-bg: #f0fff4; }
 * { box-sizing: border-box; }
 body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
 header { padding: 16px; border-bottom: 1px solid var(--border); background: #fff; }
@@ -77,3 +77,4 @@ main.main--wide { max-width: 1180px; }
 .field { margin-bottom: 12px; }
 .hint { display: block; color: #71717a; font-size: 13px; margin-top: 2px; }
 .offer-search { flex: 1; }
+.result { border: 1px solid var(--success); background: var(--success-bg); color: var(--success); padding: 8px 12px; margin-top: 12px; border-radius: 4px; overflow-wrap: anywhere; }
