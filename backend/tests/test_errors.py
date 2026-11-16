@@ -11,7 +11,7 @@ from app.services.keitaro import KeitaroClient
 pytestmark = pytest.mark.anyio
 
 API_KEY = "secret-key-123"
-ENVELOPE_KEYS = {"code", "message", "fields", "keitaro"}
+ENVELOPE_KEYS = {"code", "message", "fields", "keitaro", "keitaro_url"}
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ async def raw_client():
 
 
 async def test_pydantic_errors_go_to_fields(client):
-    res = await client.post("/api/campaigns", json={"name": "", "geo": "RUS"})
+    res = await client.post("/api/campaigns", json={"name": "x" * 256, "geo": 1, "group_id": "abc"})
     assert res.status_code == 422
     body = res.json()
     assert set(body) == ENVELOPE_KEYS
@@ -46,16 +46,16 @@ async def test_pydantic_errors_go_to_fields(client):
     assert body["message"] == "Проверьте поля формы"
     assert body["keitaro"] is None
     assert body["fields"] == {
-        "name": "Минимальная длина — 1",
-        "geo": "Максимальная длина — 2",
-        "offer_id": "Обязательное поле",
+        "name": "Максимальная длина — 255",
+        "geo": "Ожидается строка",
+        "group_id": "Ожидается целое число",
     }
 
 
 async def test_path_param_error(client):
-    res = await client.get("/api/campaigns/abc/offers")
+    res = await client.get("/api/editor/campaigns/abc")
     assert res.status_code == 422
-    assert res.json()["fields"] == {"keitaro_id": "Ожидается целое число"}
+    assert res.json()["fields"] == {"campaign_id": "Ожидается целое число"}
 
 
 async def test_invalid_json_body(client):
@@ -69,7 +69,7 @@ async def test_invalid_json_body(client):
 async def test_unknown_route_is_not_found(client):
     res = await client.get("/api/nope")
     assert res.status_code == 404
-    assert res.json() == {"code": "not_found", "message": "Не найдено", "fields": {}, "keitaro": None}
+    assert res.json() == {"code": "not_found", "message": "Не найдено", "fields": {}, "keitaro": None, "keitaro_url": None}
 
 
 async def test_wrong_method_is_not_validation_error(client):
@@ -114,15 +114,28 @@ async def test_keitaro_failures_in_envelope(raw_client, keitaro_response, handle
     assert API_KEY not in res.text
 
 
+class _BrokenKeitaro:
+    async def list_offers(self) -> list[dict]:
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        pass
+
+
 async def test_unexpected_exception_is_internal_error(raw_client, caplog):
-    # Заглушка ручки бросает NotImplementedError — это тоже непредвиденная ошибка.
-    res = await raw_client.get("/api/keitaro/campaigns")
+    # NotImplementedError изнутри ручки — непредвиденная ошибка.
+    app.dependency_overrides[get_keitaro] = lambda: _BrokenKeitaro()
+    try:
+        res = await raw_client.get("/api/keitaro/offers")
+    finally:
+        app.dependency_overrides.clear()
     assert res.status_code == 500
     assert res.json() == {
         "code": "internal_error",
         "message": "Внутренняя ошибка сервиса",
         "fields": {},
         "keitaro": None,
+        "keitaro_url": None,
     }
     assert "Traceback" not in res.text
     assert "NotImplementedError" in caplog.text

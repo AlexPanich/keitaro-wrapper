@@ -3,12 +3,17 @@ import type { ApiError } from '../api';
 interface Props {
   error: ApiError | null;
   onClose: () => void;
+  /** Если задан — кнопка «Повторить» (повтор той же операции). */
+  onRetry?: () => void;
 }
 
-/** Постоянная красная плашка ошибки операции: текст, свёрнутые «Подробности» от Keitaro и крестик. */
-export default function ErrorBanner({ error, onClose }: Props) {
+/**
+ * Постоянная красная плашка ошибки операции: текст, ссылка «Открыть в Keitaro» (если бэк её дал),
+ * «Повторить» (если передан `onRetry`), свёрнутые «Подробности» от Keitaro и крестик.
+ */
+export default function ErrorBanner({ error, onClose, onRetry }: Props) {
   if (!error) return null;
-  const { keitaro } = error;
+  const { keitaro, keitaroUrl } = error;
 
   return (
     <div className="error-banner" role="alert">
@@ -18,6 +23,18 @@ export default function ErrorBanner({ error, onClose }: Props) {
           ×
         </button>
       </div>
+      {keitaroUrl && (
+        <a href={keitaroUrl} target="_blank" rel="noreferrer">
+          Открыть в Keitaro
+        </a>
+      )}
+      {onRetry && (
+        <div>
+          <button type="button" onClick={onRetry}>
+            Повторить
+          </button>
+        </div>
+      )}
       {keitaro && (
         <details>
           <summary>Подробности</summary>

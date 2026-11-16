@@ -1,79 +1,45 @@
 # Keitaro Wrapper
 
-Обёртка над [Keitaro Admin API](https://admin-api.docs.keitaro.io/):
+Обёртка над [Keitaro Admin API](https://admin-api.docs.keitaro.io/). Стек: FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL; фронт — Vite + React + TypeScript. Термины — в [`GLOSSARY.md`](GLOSSARY.md).
 
-1. **Создаватор кампаний** — по названию, гео и ID оффера создаёт кампанию с доменом, группой и источником и двумя потоками:
-   - поток 1: трафик из указанной страны → `https://www.google.com`;
-   - поток 2: остальной трафик → выбранный оффер.
-2. **Редактор кампании** — добавление и удаление офферов с пересчётом долей.
+## Что это
 
-Стек: FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL, фронт — Vite + React + TypeScript.
+**Создаватор** — по названию, гео и офферу создаёт в Keitaro кампанию с доменом, группой и источником и двумя потоками:
+гео-поток ловит трафик из выбранных стран и редиректит на заглушку (`FALLBACK_REDIRECT_URL`, по умолчанию Google),
+оффер-поток отправляет остальной трафик на выбранный оффер. Если после создания кампании что-то сорвалось, кампания удаляется.
 
-## Структура
+**Редактор** — открывает любую кампанию Keitaro и правит офферы в её оффер-потоках: добавить, убрать в архив, вернуть из архива, закрепить долю.
+Доли остальных офферов пересчитываются автоматически, правки копятся в черновике и уходят в Keitaro одной публикацией.
 
-```
-backend/
-  app/
-    api/            # роуты FastAPI
-    core/config.py  # настройки из .env
-    db/             # engine, сессии, Base
-    models/         # ORM-модели
-    schemas/        # Pydantic-схемы
-    services/
-      keitaro/      # HTTP-клиент Keitaro Admin API
-      campaign_builder.py
-      offer_editor.py
-    main.py
-  alembic/          # миграции
-  tests/            # pytest
-frontend/           # Vite + React + TS; сборка в dist/ раздаётся FastAPI на /
-```
-
-## Настройка
+## Быстрый старт
 
 ```bash
-cp .env.example .env
-# заполнить KEITARO_BASE_URL, KEITARO_API_KEY и ID домена/группы/источника
-```
-
-## Запуск через Docker
-
-```bash
+cp .env.example .env      # вписать KEITARO_BASE_URL и KEITARO_API_KEY
 docker compose up --build
 ```
 
-Миграции применяются автоматически при старте контейнера. Приложение доступно на http://localhost:8000, Swagger — http://localhost:8000/docs.
+Приложение — http://localhost:8000. Миграции применяются автоматически при старте контейнера (`alembic upgrade head` перед запуском uvicorn).
 
-## Локальный запуск
+Все ручки API живут под `/api`, их описание — в Swagger: http://localhost:8000/docs.
 
-```bash
-docker compose up -d db
+## Переменные `.env`
 
-cd backend
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+| Переменная | Обязательна | Что делает |
+|---|---|---|
+| `KEITARO_BASE_URL` | да | Адрес Keitaro, например `https://tracker.example.com` (без `/admin_api/v1`). |
+| `KEITARO_API_KEY` | да | Ключ Admin API. Задаётся только в `.env`, в интерфейсе не запрашивается. |
+| `KEITARO_DEFAULT_GROUP_ID` | нет | ID группы, предвыбранной в форме создаватора. Пусто или `0` — «не выбрано». |
+| `KEITARO_DEFAULT_DOMAIN_ID` | нет | ID домена, предвыбранного в форме. Пусто или `0` — «не выбрано». |
+| `KEITARO_DEFAULT_TRAFFIC_SOURCE_ID` | нет | ID источника, предвыбранного в форме. Пусто или `0` — «не выбрано». |
+| `FALLBACK_REDIRECT_URL` | нет | Куда гео-поток редиректит трафик из выбранных стран. По умолчанию `https://www.google.com`. |
+| `DATABASE_URL` | нет | Строка подключения SQLAlchemy (`postgresql+asyncpg://…`). По умолчанию локальный Postgres из `.env.example`; в docker compose переопределяется на хост `db`. |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | нет | Учётка и база контейнера Postgres в docker compose (по умолчанию `keitaro` / `keitaro` / `keitaro_wrapper`). Приложение их не читает. |
 
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-
-Фронт в dev-режиме (прокси `/api` → `localhost:8000`):
-
-```bash
-cd frontend
-npm install
-npm run dev        # http://localhost:5173
-npm run build      # сборка в frontend/dist, её раздаёт FastAPI
-```
-
-## Тесты
-
-```bash
-cd backend && pip install -r requirements-dev.txt && pytest   # pytest + httpx, Keitaro замокан
-cd frontend && npm test                                       # vitest + Testing Library
-```
+Дефолты ID сверяются со справочниками Keitaro: если такого ID нет, в форме ничего не предвыбрано.
 
 ## Миграции
+
+В docker миграции применяются автоматически при старте контейнера `backend`. Вручную (из `backend/`, с активным venv и доступным Postgres из `DATABASE_URL`):
 
 ```bash
 cd backend
@@ -82,14 +48,71 @@ alembic downgrade -1                              # откатить после�
 alembic revision --autogenerate -m "описание"     # создать новую по изменениям моделей
 ```
 
-## API
+Миграция одна, начальная (`0001`). Таблицы:
 
-| Метод  | Путь                                        | Описание                         |
-|--------|---------------------------------------------|----------------------------------|
-| GET    | `/api/health`                               | healthcheck                      |
-| GET    | `/api/keitaro/offers`                       | список офферов из Keitaro        |
-| GET    | `/api/campaigns`                            | кампании, созданные через сервис |
-| POST   | `/api/campaigns`                            | создать кампанию                 |
-| GET    | `/api/campaigns/{keitaro_id}/offers`        | офферы кампании                  |
-| POST   | `/api/campaigns/{keitaro_id}/offers`        | добавить оффер                   |
-| DELETE | `/api/campaigns/{keitaro_id}/offers/{id}`   | удалить оффер                    |
+- `campaigns` — журнал кампаний, созданных создаватором (ID в Keitaro, гео, ID потоков).
+- `stream_offers` — офферы, которые обёртка помнит в оффер-потоке: архивные, закреплённые, опубликованные.
+- `stream_drafts` — черновик оффер-потока: офферы с долями и снимок потока Keitaro на момент начала правок.
+
+## Локальный запуск
+
+Бэк (Python 3.12+):
+
+```bash
+cp .env.example .env              # если ещё не сделано
+docker compose up -d db           # только Postgres на :5432
+
+cd backend
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload     # http://localhost:8000
+```
+
+Фронт в dev-режиме (Vite проксирует `/api` → `localhost:8000`):
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # tsc + сборка в frontend/dist; если папка есть, её раздаёт FastAPI на /
+```
+
+## Тесты
+
+Keitaro в тестах замокан, сеть и Postgres не нужны (хранилище бэка — SQLite в памяти).
+
+```bash
+cd backend && pip install -r requirements-dev.txt && pytest   # pytest + httpx
+cd frontend && npm install && npm test                         # vitest + Testing Library
+```
+
+## Ручная проверка на стенде
+
+> На стенде офферы, домены, группы и источники **только для чтения**, а справочники доменов и источников пустые — домен и источник оставляйте «не выбрано». Кампании называйте с префиксом `wayfinder-test-` и удаляйте после проверки.
+
+1. Запустить приложение (`docker compose up --build`) с ключом стенда в `.env` и открыть http://localhost:8000.
+2. Вкладка «Создать кампанию»: название `wayfinder-test-<дата>`, любое гео (например `DE`), группа и оффер из списков; домен и источник — «не выбрано». Нажать «Создать» — появляется «Кампания создана» с alias.
+3. Вкладка «Редактор офферов»: найти кампанию по названию или ID, открыть оффер-поток — в нём один оффер с долей 100.
+4. Добавить второй оффер — доли пересчитались до 50/50, у потока появился черновик (жёлтая точка).
+5. «Проверить и опубликовать»: в окне проверить список изменений («изменится: 100% → 50%», «+ добавится») и нажать «Опубликовать» — черновик пропадает, точка потока зелёная.
+6. Нажать «Открыть в Keitaro ↗» и убедиться в админке, что в потоке два оффера по 50 и что гео-поток редиректит на Google.
+7. Убрать второй оффер («убрать») — он ушёл в «Архив», у первого 100, появился черновик; вернуть его кнопкой «Вернуть» в архиве — снова 50/50, черновик исчез сам (совпал с Keitaro). Архив хранит только опубликованные офферы: убранный неопубликованный оффер просто пропадает из черновика.
+8. Удалить кампанию `wayfinder-test-…` в админке Keitaro (в обёртке удаления нет).
+
+## Как устроено
+
+- **БД** хранит только то, чего нет в Keitaro: журнал созданных кампаний, архивные и закреплённые офферы, черновики. Состав потоков и доли всегда читаются из Keitaro.
+- **Черновик и публикация.** Любая правка в редакторе пишется в черновик оффер-потока вместе со снимком потока Keitaro. Публикация отправляет поток целиком (`PUT /streams/{id}`); если поток в Keitaro успел измениться, обёртка предупреждает о конфликте и перезаписывает только с явного подтверждения. После публикации поток перечитывается и сверяется с отправленным.
+- **Пересчёт долей.** Закреплённые доли не трогаются, остальные офферы делят остаток до 100 поровну целыми процентами, лишние единицы достаются последним по порядку; черновик, совпавший с Keitaro, исчезает сам.
+- В `stream_drafts` хранится и имя потока (`stream_name`) — чтобы сообщить, какой поток пропал из Keitaro вместе с черновиком; в конверте ошибок есть `keitaro_url` — ссылка «Открыть в Keitaro», когда кампанию надо доделать руками (`create_orphaned`).
+- Термины — [`GLOSSARY.md`](GLOSSARY.md). ADR пока нет.
+
+## Ограничения и что не сделано
+
+- Keitaro почти не валидирует входные данные — проверки формы и ID делает обёртка до запросов.
+- Поиска по имени в Admin API нет — кампании и офферы фильтруются на бэке по полному списку, без кэша.
+- Keitaro за Cloudflare отбивает дефолтный User-Agent httpx — клиент шлёт свой (`keitaro-wrapper/0.1`).
+- Таймаут запроса к Keitaro — 10 с, без повторов.
+- Если откат создания не удался, возвращается `create_orphaned` со ссылкой на кампанию — удалить её надо руками.
+- Не сделано: авторизация, деплой, CI, создание оффер-потока в редакторе.

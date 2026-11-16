@@ -1,0 +1,134 @@
+"""Редактор офферов любой кампании Keitaro.
+
+Каждое действие с черновиком отвечает полным состоянием кампании, как загрузка.
+"""
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_keitaro
+from app.db.session import get_session
+from app.schemas.editor import EditorView, OfferAdd, PublishRequest, PublishResult, ShareSet
+from app.services import editor
+from app.services.keitaro import KeitaroClient
+
+router = APIRouter(prefix="/editor", tags=["editor"])
+
+STREAM = "/campaigns/{campaign_id}/streams/{stream_id}"
+
+
+@router.get("/campaigns/{campaign_id}", response_model=EditorView)
+async def load_campaign(
+    campaign_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Открытие кампании и Fetch: потоки из Keitaro + сверка известных офферов и черновиков."""
+    return await editor.load_campaign(session, keitaro, campaign_id)
+
+
+@router.post(f"{STREAM}/offers", response_model=EditorView)
+async def add_offer(
+    campaign_id: int,
+    stream_id: int,
+    data: OfferAdd,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Add: оффер в конец потока (архивный — как Bring back), доли пересчитываются."""
+    return await editor.add_offer(session, keitaro, campaign_id, stream_id, data.offer_id)
+
+
+@router.delete(f"{STREAM}/offers/{{offer_id}}", response_model=EditorView)
+async def remove_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Remove: оффер уходит в архив черновика, доли пересчитываются."""
+    return await editor.remove_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.post(f"{STREAM}/offers/{{offer_id}}/bring-back", response_model=EditorView)
+async def bring_back_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Bring back: архивный оффер в конец потока, доли пересчитываются."""
+    return await editor.bring_back_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.put(f"{STREAM}/offers/{{offer_id}}/share", response_model=EditorView)
+async def set_share(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    data: ShareSet,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Ручной ввод доли: закрепляет её и пересчитывает остальные."""
+    return await editor.set_share(session, keitaro, campaign_id, stream_id, offer_id, data.share)
+
+
+@router.post(f"{STREAM}/offers/{{offer_id}}/pin", response_model=EditorView)
+async def pin_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Булавка: закрепляет текущую долю без пересчёта, черновик не создаёт."""
+    return await editor.pin_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.delete(f"{STREAM}/offers/{{offer_id}}/pin", response_model=EditorView)
+async def unpin_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Снятие закрепления: оффер возвращается в общий пул, доли пересчитываются."""
+    return await editor.unpin_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.post(f"{STREAM}/recompute", response_model=EditorView)
+async def recompute_stream(
+    campaign_id: int,
+    stream_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """«Пересчитать»: доли по общему правилу с учётом закреплённых, результат — черновик."""
+    return await editor.recompute_stream(session, keitaro, campaign_id, stream_id)
+
+
+@router.delete(f"{STREAM}/draft", response_model=EditorView)
+async def cancel_draft(
+    campaign_id: int,
+    stream_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Cancel: удаляет черновик потока и его неопубликованные офферы."""
+    return await editor.cancel_draft(session, keitaro, campaign_id, stream_id)
+
+
+@router.post(f"{STREAM}/publish", response_model=PublishResult)
+async def publish_draft(
+    campaign_id: int,
+    stream_id: int,
+    data: PublishRequest,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Публикация черновика: проверка, сверка с `base_offers`, PUT, повторное чтение потока."""
+    return await editor.publish_draft(session, keitaro, campaign_id, stream_id, overwrite=data.overwrite)

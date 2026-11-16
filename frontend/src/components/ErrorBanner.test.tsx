@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ApiError, SERVICE_UNAVAILABLE } from '../api';
+import { json, mockFetch } from '../test/fetchMock';
 import CreateCampaign from './CreateCampaign';
 import ErrorBanner from './ErrorBanner';
 
@@ -12,6 +13,7 @@ const keitaroError = new ApiError(
     message: 'Проверьте KEITARO_API_KEY в .env',
     fields: {},
     keitaro: { status: 401, method: 'GET', path: '/offers', body: '{"error":"Unauthorized"}' },
+    keitaro_url: null,
   },
   502,
 );
@@ -57,19 +59,24 @@ describe('CreateCampaign: показ ошибок', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Создать' }));
   };
 
+  const DICTIONARIES = {
+    '/api/keitaro/groups': [{ id: 1, name: 'Тестовые' }],
+    '/api/keitaro/domains': [],
+    '/api/keitaro/traffic_sources': [],
+    '/api/keitaro/defaults': { group_id: 1, domain_id: null, traffic_source_id: null },
+  };
+
   it('ошибки полей — под полями, плашка — с message; крестик её закрывает', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          code: 'validation_error',
-          message: 'Проверьте поля формы',
-          fields: { geo: 'Неизвестные коды: XX' },
-          keitaro: null,
-        }),
-        { status: 422, headers: { 'Content-Type': 'application/json' } },
-      ),
-    );
-    render(<CreateCampaign offers={[{ id: 1, name: 'A' }]} />);
+    mockFetch({
+      ...DICTIONARIES,
+      '/api/campaigns': () =>
+        json(
+          { code: 'validation_error', message: 'Проверьте поля формы', fields: { geo: 'Неизвестные коды: XX' }, keitaro: null },
+          422,
+        ),
+    });
+    render(<CreateCampaign />);
+    await screen.findByRole('option', { name: 'Тестовые' });
     await fill();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Проверьте поля формы');
@@ -81,8 +88,14 @@ describe('CreateCampaign: показ ошибок', () => {
   });
 
   it('бэк недоступен → плашка «Сервис недоступен»', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-    render(<CreateCampaign offers={[{ id: 1, name: 'A' }]} />);
+    mockFetch({
+      ...DICTIONARIES,
+      '/api/campaigns': () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    render(<CreateCampaign />);
+    await screen.findByRole('option', { name: 'Тестовые' });
     await fill();
 
     expect(await screen.findByRole('alert')).toHaveTextContent(SERVICE_UNAVAILABLE);

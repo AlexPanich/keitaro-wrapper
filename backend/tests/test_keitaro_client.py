@@ -154,3 +154,27 @@ async def test_empty_success_returns_none():
     client = make_client(lambda r: httpx.Response(204))
     assert await client.get_campaign(1) is None
     await client.close()
+
+
+async def test_missing_offer_is_404_keitaro_error():
+    # Keitaro отвечает на несуществующий оффер 404 с HTML — сервис отличает его по status.
+    client = make_client(lambda r: httpx.Response(404, text="<html>Not found</html>"))
+    with pytest.raises(KeitaroError) as info:
+        await client.get_offer(99)
+    await client.close()
+    assert info.value.status == 404
+    assert info.value.keitaro.path == "/offers/99"
+
+
+async def test_delete_campaign_sends_delete():
+    # Keitaro отвечает на DELETE 200 и массивом кампаний (не так, как в документации) — тело не нужно.
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path))
+        return httpx.Response(200, json=[{"id": 42, "state": "deleted"}])
+
+    client = make_client(handler)
+    await client.delete_campaign(42)
+    await client.close()
+    assert seen == [("DELETE", "/admin_api/v1/campaigns/42")]

@@ -134,12 +134,23 @@ class KeitaroClient:
     async def list_offers(self) -> list[dict]:
         return await self._request("GET", "/offers")
 
+    async def get_offer(self, offer_id: int) -> dict:
+        """Один оффер; если его нет, Keitaro отвечает 404 с HTML."""
+        return await self._request("GET", f"/offers/{offer_id}")
+
     # --- кампании ---
+    async def list_campaigns(self) -> list[dict]:
+        return await self._request("GET", "/campaigns")
+
     async def get_campaign(self, campaign_id: int) -> dict:
         return await self._request("GET", f"/campaigns/{campaign_id}")
 
     async def create_campaign(self, payload: dict) -> dict:
         return await self._request("POST", "/campaigns", json=payload)
+
+    async def delete_campaign(self, campaign_id: int) -> None:
+        """Перенос кампании в архив (alias освобождается). Ответ — 200 и массив кампаний, он не нужен."""
+        await self._request("DELETE", f"/campaigns/{campaign_id}")
 
     # --- потоки ---
     async def list_streams(self, campaign_id: int) -> list[dict]:
