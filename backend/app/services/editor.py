@@ -223,17 +223,25 @@ def _refuse(message: str) -> ApiError:
     return ApiError("validation_error", message)
 
 
-async def _edit(
-    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, change: _Change
-) -> EditorView:
-    """Применяет правку к черновику потока (создаёт его со снимком `base_offers`) и пересчитывает доли."""
-    campaign, streams, catalog = await _read_keitaro(keitaro, campaign_id)
+async def _stream_state(
+    session: AsyncSession, streams: list[dict], stream_id: int
+) -> tuple[dict, StreamDraft | None, list[dict], dict[int, KnownOffer]]:
+    """Оффер-поток в Keitaro, его черновик, текущий состав (черновика или Keitaro) и известные офферы по id."""
     stream = next((s for s in streams if s["id"] == stream_id and _is_offer_stream(s)), None)
     if stream is None:
         raise ApiError("not_found", f"Оффер-поток #{stream_id} не найден в кампании")
     draft = await session.get(StreamDraft, stream_id)
     current = draft.offers if draft else _links(stream)
     known = {k.offer_id: k for k in await session.scalars(select(KnownOffer).where(KnownOffer.stream_id == stream_id))}
+    return stream, draft, current, known
+
+
+async def _edit(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, change: _Change
+) -> EditorView:
+    """Применяет правку к черновику потока (создаёт его со снимком `base_offers`) и пересчитывает доли."""
+    campaign, streams, catalog = await _read_keitaro(keitaro, campaign_id)
+    stream, draft, current, known = await _stream_state(session, streams, stream_id)
 
     changed = await change(current, known, catalog)
     offers = recompute(changed, {offer_id for offer_id, k in known.items() if k.pinned})
@@ -307,6 +315,83 @@ async def bring_back_offer(
         if offer_id not in catalog:
             raise _refuse(f"Оффер #{offer_id} удалён в Keitaro, вернуть нельзя")
         return _bring_back(current, offer_id)
+
+    return await _edit(session, keitaro, campaign_id, stream_id, change)
+
+
+# --- ручная доля, закрепление, «Пересчитать» ---
+
+
+def _pin(
+    session: AsyncSession, known: dict[int, KnownOffer], current: list[dict], campaign_id: int, stream_id: int,
+    offer_id: int, share: int,
+) -> None:
+    """Закрепляет долю `share` активного оффера; отказ, если Σ закреплённых станет больше 100.
+
+    `pinned` пишется в `stream_offers` и черновик сам по себе не создаёт.
+    """
+    if not _is_active(current, offer_id):
+        raise _refuse(f"Оффера #{offer_id} нет в потоке")
+    total = share + sum(
+        o["share"] for o in current if o["offer_id"] != offer_id and o["offer_id"] in known and known[o["offer_id"]].pinned
+    )
+    if total > 100:
+        raise _refuse(f"Сумма закреплённых долей станет {total}, больше 100")
+    if offer_id not in known:
+        # Активный оффер известен после загрузки; строка заводится на случай гонки с Keitaro.
+        known[offer_id] = KnownOffer(
+            stream_id=stream_id, offer_id=offer_id, campaign_id=campaign_id, pinned=False, published=True
+        )
+        session.add(known[offer_id])
+    known[offer_id].pinned = True
+
+
+async def set_share(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, offer_id: int, share: int
+) -> EditorView:
+    """Ручной ввод доли: доля закрепляется, остальные делят то, что осталось от 100."""
+
+    async def change(current: list[dict], known: dict[int, KnownOffer], _catalog: dict[int, dict]) -> list[dict]:
+        _pin(session, known, current, campaign_id, stream_id, offer_id, share)
+        return [{**o, "share": share} if o["offer_id"] == offer_id else o for o in current]
+
+    return await _edit(session, keitaro, campaign_id, stream_id, change)
+
+
+async def pin_offer(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, offer_id: int
+) -> EditorView:
+    """Булавка: закрепляет текущую долю оффера без пересчёта; черновик не создаётся."""
+    campaign, streams, catalog = await _read_keitaro(keitaro, campaign_id)
+    _stream, _draft, current, known = await _stream_state(session, streams, stream_id)
+    share = next((o["share"] for o in current if o["offer_id"] == offer_id), 0)
+    _pin(session, known, current, campaign_id, stream_id, offer_id, share)
+    await session.flush()
+    return await _build_view(session, campaign, streams, catalog)
+
+
+async def unpin_offer(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int, offer_id: int
+) -> EditorView:
+    """Снятие закрепления: оффер возвращается в общий пул, доли пересчитываются."""
+
+    async def change(current: list[dict], known: dict[int, KnownOffer], _catalog: dict[int, dict]) -> list[dict]:
+        if not _is_active(current, offer_id):
+            raise _refuse(f"Оффера #{offer_id} нет в потоке")
+        if offer_id in known:
+            known[offer_id].pinned = False
+        return current
+
+    return await _edit(session, keitaro, campaign_id, stream_id, change)
+
+
+async def recompute_stream(
+    session: AsyncSession, keitaro: KeitaroClient, campaign_id: int, stream_id: int
+) -> EditorView:
+    """«Пересчитать»: доли по общему правилу с учётом закреплённых, результат — черновик."""
+
+    async def change(current: list[dict], _known: dict[int, KnownOffer], _catalog: dict[int, dict]) -> list[dict]:
+        return current
 
     return await _edit(session, keitaro, campaign_id, stream_id, change)
 
