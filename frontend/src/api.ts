@@ -30,8 +30,14 @@ export interface Campaign {
   keitaro_id: number;
   name: string;
   alias: string | null;
-  geo: string;
+  /** ISO-коды стран гео-потока. */
+  geo: string[];
   initial_offer_id: number;
+  domain_id: number | null;
+  group_id: number | null;
+  traffic_source_id: number | null;
+  geo_stream_id: number;
+  offer_stream_id: number;
   created_at: string;
 }
 

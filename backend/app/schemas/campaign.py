@@ -16,6 +16,11 @@ class CampaignRead(BaseModel):
     keitaro_id: int
     name: str
     alias: str | None
-    geo: str
+    geo: list[str] = Field(description="ISO 3166-1 alpha-2 коды стран гео-потока")
     initial_offer_id: int
+    domain_id: int | None
+    group_id: int | None
+    traffic_source_id: int | None
+    geo_stream_id: int
+    offer_stream_id: int
     created_at: datetime
