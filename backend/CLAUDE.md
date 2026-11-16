@@ -7,6 +7,7 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `main.py` — приложение, exception handlers, монтирование фронта.
 - `api/router.py` — общий роутер с префиксом `/api`; роуты в `api/routes/`, зависимости в `api/deps.py`.
 - `core/config.py` — `Settings` (читает `.env` из корня репозитория).
+- `core/errors.py` — единый конверт ошибок: `ErrorCode`, `ApiError`, exception handlers.
 - `db/` — `Base`, `engine`, `get_session`.
 - `models/` — ORM-модели (`Mapped[...]` / `mapped_column`).
 - `schemas/` — Pydantic-схемы запросов/ответов.
@@ -17,7 +18,9 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 
 - Роуты тонкие: валидация через схемы, вся логика — в `services/`. Сервисы получают `AsyncSession` и `KeitaroClient` аргументами (через `Depends`), а не создают сами.
 - Клиент Keitaro получаем только через `Depends(get_keitaro)` — так он закрывается и легко подменяется в тестах.
-- Ошибки Keitaro — `KeitaroError`, глобальный handler превращает их в `502`. `NotImplementedError` → `501`.
+- Любая ошибка API — конверт `{code, message, fields, keitaro}` (`ErrorResponse`). Свои ошибки бросай как `ApiError(code, message, fields=...)`; HTTP-статус берётся из `code`. Список кодов закрытый — новый код добавляй одновременно в `ErrorCode` и в union на фронте (`frontend/src/api.ts`).
+- `KeitaroError` (наследник `ApiError`) бросает только клиент: `keitaro_auth` / `keitaro_error` / `keitaro_unavailable`, в `keitaro` — `{status, method, path, body}` без ключа API. Сервисы могут перехватить её и бросить свою ошибку с текстом шага. `message` всегда наш, по-русски.
+- Ошибки Pydantic автоматически раскладываются в `fields`; любое непредвиденное исключение (включая `NotImplementedError` заглушек) → `internal_error` 500, traceback только в лог.
 - Новые методы Keitaro добавляй в `KeitaroClient` через `_request`, не дергай `httpx` напрямую из сервисов.
 - Доли офферов в потоке в сумме всегда 100 (`StreamOffer.share` 0..100).
 
@@ -40,5 +43,6 @@ pytest
 ```
 
 - pytest + anyio, async-тесты помечаются `pytestmark = pytest.mark.anyio`.
+- Клиент Keitaro тестируется через `KeitaroClient(transport=httpx.MockTransport(...))` — без сети.
 - Фикстура `client` в `tests/conftest.py` — `httpx.AsyncClient` поверх `ASGITransport`, `get_keitaro` подменён на `FakeKeitaro`. Нужны новые методы Keitaro в тестах — добавляй их в `FakeKeitaro`.
 - БД в тестах сейчас не поднимается; для тестов с БД переопределяй `get_session`.

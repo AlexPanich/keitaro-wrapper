@@ -1,23 +1,13 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
-from app.services.keitaro import KeitaroError
+from app.core.errors import register_error_handlers
 
 app = FastAPI(title="Keitaro Wrapper")
 app.include_router(api_router)
-
-
-@app.exception_handler(KeitaroError)
-async def keitaro_error_handler(_: Request, exc: KeitaroError) -> JSONResponse:
-    return JSONResponse(status_code=502, content={"detail": "Keitaro API error", "keitaro": exc.detail})
-
-
-@app.exception_handler(NotImplementedError)
-async def not_implemented_handler(_: Request, __: NotImplementedError) -> JSONResponse:
-    return JSONResponse(status_code=501, content={"detail": "Not implemented yet"})
+register_error_handlers(app)
 
 
 if settings.frontend_dir.exists():
