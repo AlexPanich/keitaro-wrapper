@@ -67,6 +67,11 @@ export function reviewDiff(stream: EditorStream): DiffLine[] {
   return [...active, ...removed];
 }
 
+/** Все активные офферы закреплены, а сумма «Станет» ≠ 100 — пересчитывать нечего, публикация заблокирована. */
+export function allPinnedSumProblem(stream: EditorStream): boolean {
+  return stream.offers.length > 0 && stream.offers.every((o) => o.pinned) && newShareSum(stream.offers) !== 100;
+}
+
 /**
  * Точка у потока в списке: серый — не оффер-поток, жёлтый — черновик,
  * красный — требует внимания, зелёный — опубликован.
@@ -75,6 +80,7 @@ export type StreamStatus = 'readonly' | 'draft' | 'attention' | 'published';
 
 export function streamStatus(stream: EditorStream): StreamStatus {
   if (!stream.is_offer_stream) return 'readonly';
+  if (allPinnedSumProblem(stream)) return 'attention';
   if (stream.draft) return 'draft';
   if (hasSumProblem(stream)) return 'attention';
   return 'published';

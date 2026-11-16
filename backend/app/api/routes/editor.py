@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_keitaro
 from app.db.session import get_session
-from app.schemas.editor import EditorView, OfferAdd, PublishRequest, PublishResult
+from app.schemas.editor import EditorView, OfferAdd, PublishRequest, PublishResult, ShareSet
 from app.services import editor
 from app.services.keitaro import KeitaroClient
 
@@ -61,6 +61,54 @@ async def bring_back_offer(
 ):
     """Bring back: архивный оффер в конец потока, доли пересчитываются."""
     return await editor.bring_back_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.put(f"{STREAM}/offers/{{offer_id}}/share", response_model=EditorView)
+async def set_share(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    data: ShareSet,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Ручной ввод доли: закрепляет её и пересчитывает остальные."""
+    return await editor.set_share(session, keitaro, campaign_id, stream_id, offer_id, data.share)
+
+
+@router.post(f"{STREAM}/offers/{{offer_id}}/pin", response_model=EditorView)
+async def pin_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Булавка: закрепляет текущую долю без пересчёта, черновик не создаёт."""
+    return await editor.pin_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.delete(f"{STREAM}/offers/{{offer_id}}/pin", response_model=EditorView)
+async def unpin_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """Снятие закрепления: оффер возвращается в общий пул, доли пересчитываются."""
+    return await editor.unpin_offer(session, keitaro, campaign_id, stream_id, offer_id)
+
+
+@router.post(f"{STREAM}/recompute", response_model=EditorView)
+async def recompute_stream(
+    campaign_id: int,
+    stream_id: int,
+    session: AsyncSession = Depends(get_session),
+    keitaro: KeitaroClient = Depends(get_keitaro),
+):
+    """«Пересчитать»: доли по общему правилу с учётом закреплённых, результат — черновик."""
+    return await editor.recompute_stream(session, keitaro, campaign_id, stream_id)
 
 
 @router.delete(f"{STREAM}/draft", response_model=EditorView)

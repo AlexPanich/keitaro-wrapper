@@ -83,6 +83,13 @@ async function openCampaign() {
   return screen.findByRole('table');
 }
 
+/** Текст строки, где поле доли «Станет» заменено его значением. */
+function rowText(row: HTMLElement): string {
+  return Array.from(row.querySelectorAll('td'))
+    .map((td) => (td.querySelector('input')?.value ?? '') + td.textContent)
+    .join(' ');
+}
+
 function bodyRows(table: HTMLElement) {
   return within(table)
     .getAllByRole('row')
@@ -99,9 +106,10 @@ describe('Editor: черновик', () => {
       'В Keitaro',
       '→',
       'Станет',
+      'закрепление',
       'убрать',
     ]);
-    expect(bodyRows(table).map((r) => r.textContent)).toEqual([
+    expect(bodyRows(table).map(rowText)).toEqual([
       expect.stringMatching(/#1 Offer 1.*50%.*→.*33%/),
       expect.stringMatching(/#2 Offer 2.*50%.*→.*33%/),
       expect.stringMatching(/#3 Offer 3.*новый.*—.*→.*34%/),
@@ -119,7 +127,7 @@ describe('Editor: черновик', () => {
     mockBackend(view(stream()));
     const table = await openCampaign();
 
-    expect(bodyRows(table).map((r) => r.textContent)).toEqual([
+    expect(bodyRows(table).map(rowText)).toEqual([
       expect.stringMatching(/#1 Offer 1.*50%.*50%/),
       expect.stringMatching(/#2 Offer 2.*50%.*50%/),
     ]);
@@ -148,7 +156,7 @@ describe('Editor: черновик', () => {
     expect(await screen.findByRole('region', { name: 'Неопубликованные изменения' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(`${STREAM}/offers/1`, expect.objectContaining({ method: 'DELETE' }));
     const rows = bodyRows(screen.getByRole('table'));
-    expect(rows.map((r) => r.textContent)).toEqual([
+    expect(rows.map(rowText)).toEqual([
       expect.stringMatching(/#2 Offer 2.*50%.*→.*100%/),
       expect.stringMatching(/#1 Offer 1.*архив.*50%.*→.*0%/),
     ]);
@@ -228,7 +236,7 @@ describe('Editor: черновик', () => {
 
     expect(await screen.findByRole('region', { name: 'Неопубликованные изменения' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(`${STREAM}/offers/5/bring-back`, expect.objectContaining({ method: 'POST' }));
-    expect(bodyRows(screen.getByRole('table'))[2]).toHaveTextContent(/#5 Offer 5.*—.*→.*34%/);
+    expect(rowText(bodyRows(screen.getByRole('table'))[2])).toMatch(/#5 Offer 5.*—.*→.*34%/);
   });
 
   it('Отменить — DELETE черновика, панель пропадает', async () => {

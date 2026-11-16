@@ -92,6 +92,14 @@ export default function Editor() {
     bringBack: (offerId) => void run(() => api.bringBackOffer(campaignId, streamId, offerId)),
     cancel: () => void run(() => api.cancelDraft(campaignId, streamId)),
     publish: (overwrite) => publish(campaignId, streamId, overwrite),
+    setShare: async (offerId, share) =>
+      (await run(() => api.setShare(campaignId, streamId, offerId, share))) === null,
+    invalidShare: () => setToast('Доля — целое от 0 до 100'),
+    togglePin: (offerId, pinned) =>
+      void run(() =>
+        pinned ? api.unpinOffer(campaignId, streamId, offerId) : api.pinOffer(campaignId, streamId, offerId),
+      ),
+    recompute: () => void run(() => api.recomputeStream(campaignId, streamId)),
   });
 
   return (
