@@ -48,6 +48,7 @@ def upgrade() -> None:
         "stream_drafts",
         sa.Column("stream_id", sa.Integer(), primary_key=True, autoincrement=False),
         sa.Column("campaign_id", sa.Integer(), nullable=False),
+        sa.Column("stream_name", sa.String(), server_default="", nullable=False),
         sa.Column("offers", sa.JSON(), nullable=False),
         sa.Column("base_offers", sa.JSON(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
