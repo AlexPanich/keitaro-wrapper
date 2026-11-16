@@ -12,7 +12,6 @@ class Settings(BaseSettings):
 
     keitaro_base_url: str = ""
     keitaro_api_key: str = ""
-    keitaro_timeout: float = 15.0
 
     keitaro_default_domain_id: int | None = None
     keitaro_default_group_id: int | None = None
