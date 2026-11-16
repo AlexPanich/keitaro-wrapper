@@ -64,3 +64,6 @@ main.main--wide { max-width: 1180px; }
 .archive { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .archive__list { list-style: none; margin: 4px 0 0; padding: 0; color: #71717a; }
 .archive__list li { padding: 4px 0; }
+.field { margin-bottom: 12px; }
+.hint { display: block; color: #71717a; font-size: 13px; margin-top: 2px; }
+.offer-search { flex: 1; }

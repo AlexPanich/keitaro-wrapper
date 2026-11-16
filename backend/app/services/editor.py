@@ -7,24 +7,20 @@ from app.core.config import settings
 from app.core.errors import ApiError
 from app.models import KnownOffer
 from app.schemas.editor import CampaignShort, EditorCampaign, EditorOffer, EditorStream, EditorView
+from app.services.dictionaries import matches
 from app.services.keitaro import KeitaroClient, KeitaroError
 
 # Порядок проверки потоков в Keitaro: перехватывающие, обычные, по умолчанию.
 _TYPE_RANK = {"forced": 0, "regular": 1, "default": 2}
 
 
-def _matches(item: dict, q: str) -> bool:
-    """Подстрока названия без учёта регистра или точное совпадение ID."""
-    return q.casefold() in str(item.get("name", "")).casefold() or q == str(item["id"])
-
-
 async def search_campaigns(keitaro: KeitaroClient, q: str) -> list[CampaignShort]:
-    # Поиска по имени в Keitaro нет — тянем весь список и фильтруем у себя.
+    # Поиска по имени в Keitaro нет — тянем весь список и фильтруем у себя, как офферы.
     q = q.strip()
     return [
         CampaignShort(id=c["id"], name=c["name"], state=c["state"])
         for c in await keitaro.list_campaigns()
-        if not q or _matches(c, q)
+        if not q or matches(c, q)
     ]
 
 

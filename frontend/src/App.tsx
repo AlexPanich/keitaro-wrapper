@@ -1,23 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import { api, toApiError, type ApiError, type OfferShort } from './api';
 import CreateCampaign from './components/CreateCampaign';
 import Editor from './components/Editor';
-import ErrorBanner from './components/ErrorBanner';
 
 type Tab = 'create' | 'edit';
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('create');
-  const [offers, setOffers] = useState<OfferShort[]>([]);
-  const [offersError, setOffersError] = useState<ApiError | null>(null);
-
-  useEffect(() => {
-    api
-      .listOffers()
-      .then(setOffers)
-      .catch((e) => setOffersError(toApiError(e)));
-  }, []);
 
   return (
     <>
@@ -33,8 +22,7 @@ export default function App() {
         </nav>
       </header>
       <main className={tab === 'edit' ? 'main--wide' : undefined}>
-        <ErrorBanner error={offersError} onClose={() => setOffersError(null)} />
-        {tab === 'create' ? <CreateCampaign offers={offers} /> : <Editor />}
+        {tab === 'create' ? <CreateCampaign /> : <Editor />}
       </main>
     </>
   );

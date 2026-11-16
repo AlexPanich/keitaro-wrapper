@@ -17,12 +17,15 @@ from app.services.keitaro import KeitaroError
 class FakeKeitaro:
     """Заглушка клиента Keitaro — без сетевых запросов.
 
-    Данные настраиваются в тесте через фикстуру `keitaro`: `offers`, `campaigns`
-    (`{id: кампания}`) и `streams` (`{campaign_id: [потоки]}`).
+    Тест подменяет данные через фикстуру `keitaro`: списки `offers`, `groups`, `domains`,
+    `traffic_sources`, а также `campaigns` (`{id: кампания}`) и `streams` (`{campaign_id: [потоки]}`).
     """
 
     def __init__(self) -> None:
         self.offers: list[dict] = [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
+        self.groups: list[dict] = []
+        self.domains: list[dict] = []
+        self.traffic_sources: list[dict] = []
         self.campaigns: dict[int, dict] = {}
         self.streams: dict[int, list[dict]] = {}
 
@@ -45,6 +48,16 @@ class FakeKeitaro:
     async def list_streams(self, campaign_id: int) -> list[dict]:
         return self.streams.get(campaign_id, [])
 
+    async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
+        assert group_type == "campaigns"
+        return self.groups
+
+    async def list_domains(self) -> list[dict]:
+        return self.domains
+
+    async def list_traffic_sources(self) -> list[dict]:
+        return self.traffic_sources
+
     async def close(self) -> None:
         pass
 
@@ -52,6 +65,12 @@ class FakeKeitaro:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture
+def keitaro() -> FakeKeitaro:
+    """Заглушка Keitaro, которую видят ручки через фикстуру ``client``."""
+    return FakeKeitaro()
 
 
 @pytest.fixture
@@ -79,13 +98,7 @@ async def session(session_factory) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-def keitaro() -> FakeKeitaro:
-    """Фейковый Keitaro, который получат ручки в этом тесте."""
-    return FakeKeitaro()
-
-
-@pytest.fixture
-async def client(session_factory, keitaro) -> AsyncIterator[AsyncClient]:
+async def client(session_factory, keitaro: FakeKeitaro) -> AsyncIterator[AsyncClient]:
     async def _get_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as s:
             yield s
