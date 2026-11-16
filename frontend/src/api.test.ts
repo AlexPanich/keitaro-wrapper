@@ -22,7 +22,7 @@ describe('разбор конверта ошибки', () => {
       jsonResponse({ code: 'keitaro_error', message: 'Keitaro вернул ошибку', fields: {}, keitaro }, 502),
     );
 
-    const err = await catchError(api.listOffers());
+    const err = await catchError(api.listGroups());
     expect(err.code).toBe('keitaro_error');
     expect(err.status).toBe(502);
     expect(err.message).toBe('Keitaro вернул ошибку');
@@ -46,7 +46,7 @@ describe('разбор конверта ошибки', () => {
   it('бэк недоступен → «Сервис недоступен»', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const err = await catchError(api.listOffers());
+    const err = await catchError(api.listGroups());
     expect(err.code).toBeNull();
     expect(err.status).toBeNull();
     expect(err.message).toBe(SERVICE_UNAVAILABLE);
@@ -55,7 +55,7 @@ describe('разбор конверта ошибки', () => {
   it('ответ не JSON → «Сервис недоступен»', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>Bad Gateway</html>', { status: 502 }));
 
-    const err = await catchError(api.listOffers());
+    const err = await catchError(api.listGroups());
     expect(err.code).toBeNull();
     expect(err.status).toBe(502);
     expect(err.message).toBe(SERVICE_UNAVAILABLE);

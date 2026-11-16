@@ -13,10 +13,26 @@ from app.main import app
 
 
 class FakeKeitaro:
-    """Заглушка клиента Keitaro — без сетевых запросов."""
+    """Заглушка клиента Keitaro — без сетевых запросов. Тест может подменить списки."""
+
+    def __init__(self) -> None:
+        self.offers: list[dict] = [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
+        self.groups: list[dict] = []
+        self.domains: list[dict] = []
+        self.traffic_sources: list[dict] = []
 
     async def list_offers(self) -> list[dict]:
-        return [{"id": 1, "name": "Offer A"}, {"id": 2, "name": "Offer B"}]
+        return self.offers
+
+    async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
+        assert group_type == "campaigns"
+        return self.groups
+
+    async def list_domains(self) -> list[dict]:
+        return self.domains
+
+    async def list_traffic_sources(self) -> list[dict]:
+        return self.traffic_sources
 
     async def close(self) -> None:
         pass
@@ -25,6 +41,12 @@ class FakeKeitaro:
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture
+def keitaro() -> FakeKeitaro:
+    """Заглушка Keitaro, которую видят ручки через фикстуру ``client``."""
+    return FakeKeitaro()
 
 
 @pytest.fixture
@@ -52,12 +74,12 @@ async def session(session_factory) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def client(session_factory) -> AsyncIterator[AsyncClient]:
+async def client(session_factory, keitaro: FakeKeitaro) -> AsyncIterator[AsyncClient]:
     async def _get_session() -> AsyncIterator[AsyncSession]:
         async with session_factory() as s:
             yield s
 
-    app.dependency_overrides[get_keitaro] = lambda: FakeKeitaro()
+    app.dependency_overrides[get_keitaro] = lambda: keitaro
     app.dependency_overrides[get_session] = _get_session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

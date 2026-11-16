@@ -1,6 +1,22 @@
+/** Оффер из справочника Keitaro (урезанная проекция поиска). */
 export interface OfferShort {
   id: number;
   name: string;
+  group: string | null;
+  state: string | null;
+}
+
+/** Пункт справочника Keitaro: группа, домен или источник. */
+export interface DictionaryItem {
+  id: number;
+  name: string;
+}
+
+/** Предвыбор селектов создаватора из `.env`; `null` — предвыбора нет. */
+export interface Defaults {
+  group_id: number | null;
+  domain_id: number | null;
+  traffic_source_id: number | null;
 }
 
 export interface StreamOffer {
@@ -148,7 +164,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  listOffers: () => request<OfferShort[]>('/keitaro/offers'),
+  searchOffers: (q: string) => request<OfferShort[]>(`/keitaro/offers?q=${encodeURIComponent(q)}`),
+  listGroups: () => request<DictionaryItem[]>('/keitaro/groups'),
+  listDomains: () => request<DictionaryItem[]>('/keitaro/domains'),
+  listTrafficSources: () => request<DictionaryItem[]>('/keitaro/traffic_sources'),
+  getDefaults: () => request<Defaults>('/keitaro/defaults'),
   createCampaign: (data: CampaignCreate) =>
     request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   campaignOffers: (campaignId: number) => request<StreamOffer[]>(`/campaigns/${campaignId}/offers`),
