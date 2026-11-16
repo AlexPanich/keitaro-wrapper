@@ -9,7 +9,9 @@
 
 import json
 from typing import Any
+from urllib.parse import quote
 
+import anyio
 import httpx
 
 from app.core.config import settings
@@ -22,27 +24,38 @@ BODY_LIMIT = 1000
 HTML_BODY = "HTML-страница (вероятно, Cloudflare или неверный URL)"
 API_PREFIX = "/admin_api/v1"
 
-MESSAGES: dict[str, str] = {
-    "keitaro_auth": "Keitaro отклонил ключ API. Проверьте KEITARO_API_KEY в .env",
-    "keitaro_error": "Keitaro вернул ошибку",
-    "keitaro_not_json": "Keitaro ответил не JSON",
-    "keitaro_timeout": "Keitaro не ответил за 10 секунд, попробуйте ещё раз",
-    "keitaro_network": "Не удалось связаться с Keitaro, попробуйте ещё раз",
-}
+AUTH_MESSAGE = "Keitaro отклонил ключ API. Проверьте KEITARO_API_KEY в .env"
+HTTP_ERROR_MESSAGE = "Keitaro вернул ошибку"
+NOT_JSON_MESSAGE = "Keitaro ответил не JSON"
+TIMEOUT_MESSAGE = f"Keitaro не ответил за {TIMEOUT_SECONDS:g} секунд, попробуйте ещё раз"
+NETWORK_MESSAGE = "Не удалось связаться с Keitaro, попробуйте ещё раз"
 
 
 class KeitaroError(ApiError):
-    """Неудачный запрос к Keitaro. ``status`` — HTTP-статус Keitaro или ``None``, если ответа не было."""
+    """Неудачный запрос к Keitaro. Подробности — в ``keitaro`` (всегда заполнено)."""
+
+    keitaro: KeitaroDetails
 
     def __init__(self, code: ErrorCode, message: str, details: KeitaroDetails):
         super().__init__(code, message, keitaro=details)
-        self.status = details.status
-        self.details = details
+
+    @property
+    def status(self) -> int | None:
+        """HTTP-статус Keitaro или ``None``, если ответа не было."""
+        return self.keitaro.status
 
 
 def _is_html(response: httpx.Response) -> bool:
     content_type = response.headers.get("content-type", "")
     return "text/html" in content_type or response.text.lstrip()[:1] == "<"
+
+
+def _is_json(response: httpx.Response) -> bool:
+    try:
+        response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False
+    return True
 
 
 class KeitaroClient:
@@ -65,7 +78,11 @@ class KeitaroClient:
         await self._http.aclose()
 
     def _redact(self, text: str) -> str:
-        return text.replace(self._api_key, "***") if self._api_key else text
+        if not self._api_key:
+            return text
+        for variant in {self._api_key, quote(self._api_key, safe="")}:
+            text = text.replace(variant, "***")
+        return text
 
     def _details(self, method: str, path: str, response: httpx.Response | None) -> KeitaroDetails:
         body: str | None = None
@@ -78,35 +95,31 @@ class KeitaroClient:
             body=body,
         )
 
+    def _fail(self, code: ErrorCode, message: str, method: str, path: str, response: httpx.Response | None) -> KeitaroError:
+        return KeitaroError(code, message, self._details(method, path, response))
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        # httpx ограничивает каждую фазу запроса отдельно; fail_after — общий лимит на весь запрос.
         try:
-            response = await self._http.request(method, path, **kwargs)
-        except httpx.TimeoutException:
-            raise KeitaroError(
-                "keitaro_unavailable", MESSAGES["keitaro_timeout"], self._details(method, path, None)
-            ) from None
+            with anyio.fail_after(TIMEOUT_SECONDS):
+                response = await self._http.request(method, path, **kwargs)
+        except (TimeoutError, httpx.TimeoutException):
+            raise self._fail("keitaro_unavailable", TIMEOUT_MESSAGE, method, path, None) from None
         except httpx.TransportError:
-            raise KeitaroError(
-                "keitaro_unavailable", MESSAGES["keitaro_network"], self._details(method, path, None)
-            ) from None
+            raise self._fail("keitaro_unavailable", NETWORK_MESSAGE, method, path, None) from None
 
         if response.is_error:
-            details = self._details(method, path, response)
-            # 403 с HTML — это Cloudflare (1010 и т. п.), а не отказ по ключу.
-            if response.status_code == 401 or (response.status_code == 403 and not _is_html(response)):
-                raise KeitaroError("keitaro_auth", MESSAGES["keitaro_auth"], details)
-            raise KeitaroError("keitaro_error", MESSAGES["keitaro_error"], details)
+            # 403 отвечает и Cloudflare (1010: HTML или текст «error code: 1010»), а Keitaro
+            # при неверном ключе — JSON. Поэтому 403 считаем отказом по ключу только с JSON.
+            if response.status_code == 401 or (response.status_code == 403 and _is_json(response)):
+                raise self._fail("keitaro_auth", AUTH_MESSAGE, method, path, response)
+            raise self._fail("keitaro_error", HTTP_ERROR_MESSAGE, method, path, response)
 
         if not response.content:
             return None
-        if _is_html(response):
-            raise KeitaroError("keitaro_error", MESSAGES["keitaro_not_json"], self._details(method, path, response))
-        try:
-            return response.json()
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            raise KeitaroError(
-                "keitaro_error", MESSAGES["keitaro_not_json"], self._details(method, path, response)
-            ) from None
+        if _is_html(response) or not _is_json(response):
+            raise self._fail("keitaro_error", NOT_JSON_MESSAGE, method, path, response)
+        return response.json()
 
     # --- справочники ---
     async def list_domains(self) -> list[dict]:

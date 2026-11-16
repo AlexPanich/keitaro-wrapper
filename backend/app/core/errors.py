@@ -6,31 +6,18 @@
 """
 
 import logging
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.schemas.error import ErrorResponse, KeitaroDetails
+from app.schemas.error import ErrorCode, ErrorResponse, KeitaroDetails
 
 logger = logging.getLogger(__name__)
 
-ErrorCode = Literal[
-    "validation_error",
-    "not_found",
-    "draft_conflict",
-    "alias_exhausted",
-    "keitaro_error",
-    "keitaro_auth",
-    "keitaro_unavailable",
-    "create_rolled_back",
-    "create_orphaned",
-    "internal_error",
-]
-
-HTTP_STATUS: dict[str, int] = {
+HTTP_STATUS: dict[ErrorCode, int] = {
     "validation_error": 422,
     "not_found": 404,
     "draft_conflict": 409,
@@ -74,9 +61,17 @@ def error_response(
     message: str,
     fields: dict[str, str] | None = None,
     keitaro: KeitaroDetails | None = None,
+    *,
+    status_code: int | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
+    """Конверт ошибки. ``status_code`` переопределяет статус из ``code`` — только для ошибок Starlette."""
     body = ErrorResponse(code=code, message=message, fields=fields or {}, keitaro=keitaro)
-    return JSONResponse(status_code=HTTP_STATUS[code], content=body.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status_code or HTTP_STATUS[code],
+        content=body.model_dump(mode="json"),
+        headers=headers,
+    )
 
 
 # Русские тексты для частых ошибок Pydantic; остальное — исходное сообщение.
@@ -124,13 +119,18 @@ async def _validation_handler(_: Request, exc: RequestValidationError) -> JSONRe
     return error_response("validation_error", VALIDATION_MESSAGE, pydantic_fields(list(exc.errors())))
 
 
-async def _http_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def _http_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Ошибки маршрутизации Starlette: неизвестный путь, неверный метод и т. п.
+
+    Это не проверки формы, поэтому не ``validation_error``. 404 → ``not_found``, остальное —
+    ``internal_error`` (фронт обратился к API неправильно), но с исходным HTTP-статусом (405 и т. д.).
+    """
     if exc.status_code == 404:
         return error_response("not_found", "Не найдено")
-    if 400 <= exc.status_code < 500:
-        return error_response("validation_error", "Некорректный запрос")
-    logger.error("HTTP %s: %s", exc.status_code, exc.detail)
-    return error_response("internal_error", INTERNAL_MESSAGE)
+    logger.error("HTTP %s на %s %s: %s", exc.status_code, request.method, request.url.path, exc.detail)
+    return error_response(
+        "internal_error", "Некорректный запрос к API", status_code=exc.status_code, headers=exc.headers
+    )
 
 
 async def _unhandled_handler(request: Request, exc: Exception) -> JSONResponse:

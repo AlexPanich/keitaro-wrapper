@@ -2,10 +2,12 @@
 
 from collections.abc import Callable
 
+import anyio
 import httpx
 import pytest
 
 from app.services.keitaro import KeitaroClient, KeitaroError
+from app.services.keitaro import client as client_module
 from app.services.keitaro.client import BODY_LIMIT, HTML_BODY, TIMEOUT_SECONDS, USER_AGENT
 
 pytestmark = pytest.mark.anyio
@@ -65,6 +67,12 @@ async def test_cloudflare_403_html_is_keitaro_error():
     assert err.keitaro.body == HTML_BODY
 
 
+async def test_cloudflare_403_plain_text_is_keitaro_error():
+    err = await fail(lambda r: httpx.Response(403, text="error code: 1010"))
+    assert err.code == "keitaro_error"
+    assert err.keitaro.body == "error code: 1010"
+
+
 @pytest.mark.parametrize("status", [400, 404, 422, 500, 503])
 async def test_http_error(status):
     err = await fail(lambda r: httpx.Response(status, json={"error": "bad"}))
@@ -96,6 +104,19 @@ async def test_timeout_is_unavailable():
     assert err.keitaro.body is None
 
 
+async def test_total_timeout_covers_slow_response(monkeypatch):
+    # Каждая фаза httpx укладывается в лимит, но запрос целиком — нет.
+    monkeypatch.setattr(client_module, "TIMEOUT_SECONDS", 0.05)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await anyio.sleep(1)
+        return httpx.Response(200, json=[])
+
+    err = await fail(handler)
+    assert err.code == "keitaro_unavailable"
+    assert err.status is None
+
+
 async def test_network_error_is_unavailable_without_retries():
     calls = 0
 
@@ -115,6 +136,18 @@ async def test_body_is_truncated_and_key_redacted():
     assert len(err.keitaro.body) == BODY_LIMIT
     assert API_KEY not in err.keitaro.body
     assert err.keitaro.body.startswith("key=*** ")
+
+
+async def test_url_encoded_key_is_redacted():
+    client = KeitaroClient(
+        base_url="https://k.example",
+        api_key="a/b+c",
+        transport=httpx.MockTransport(lambda r: httpx.Response(500, text="key=a%2Fb%2Bc raw=a/b+c")),
+    )
+    with pytest.raises(KeitaroError) as info:
+        await client.list_offers()
+    await client.close()
+    assert info.value.keitaro.body == "key=*** raw=***"
 
 
 async def test_empty_success_returns_none():
