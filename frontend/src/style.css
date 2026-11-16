@@ -61,6 +61,16 @@ main.main--wide { max-width: 1180px; }
 .share-bar .share-bar__gap { background: repeating-linear-gradient(45deg, #fecaca, #fecaca 6px, #fee2e2 6px, #fee2e2 12px); color: #7f1d1d; }
 .offers-table th, .offers-table td { border: none; border-bottom: 1px solid #f4f4f5; font-size: 14px; padding: 4px 6px; }
 .offers-table .num { text-align: right; width: 110px; font-variant-numeric: tabular-nums; }
+.offers-table .arrow { text-align: center; width: 28px; color: #a1a1aa; }
+.offers-table tr.changed td { background: #fefce8; }
+.offers-table tr.archived td { color: #a1a1aa; }
+.offers-table tfoot td { font-weight: 600; border-bottom: none; }
+.tag--draft { background: #fef08a; color: #713f12; }
+.add-offer { margin-top: 12px; }
+.add-offer .row { align-items: flex-start; }
+.add-offer .row > button { margin-top: 4px; }
+.draft-bar { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px -16px -16px; padding: 10px 16px; background: #fefce8; border-top: 1px solid #eab308; border-radius: 0 0 8px 8px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; padding: 8px 14px; border-radius: 6px; background: #27272a; color: #fff; font-size: 14px; box-shadow: 0 4px 12px #0003; }
 .archive { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .archive__list { list-style: none; margin: 4px 0 0; padding: 0; color: #71717a; }
 .archive__list li { padding: 4px 0; }

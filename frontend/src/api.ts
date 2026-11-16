@@ -58,11 +58,15 @@ export interface EditorOffer {
   offer_id: number;
   /** `null` — оффера нет в Keitaro («удалён в Keitaro»). */
   name: string | null;
-  /** Доля в Keitaro; у архивного — `null`. Сумма может быть ≠ 100. */
+  /** Доля в Keitaro; `null` — оффера нет в потоке Keitaro. Сумма может быть ≠ 100. */
   share: number | null;
+  /** Доля «Станет»: из черновика, без черновика — как в Keitaro; у архивного — `null`. */
+  new_share: number | null;
   disabled: boolean;
   deleted: boolean;
   pinned: boolean;
+  /** `false` — добавлен в черновике и ещё не публиковался («новый»). */
+  published: boolean;
 }
 
 export type StreamType = 'forced' | 'regular' | 'default';
@@ -75,6 +79,9 @@ export interface EditorStream {
   state: string;
   schema: string;
   is_offer_stream: boolean;
+  /** Есть черновик: `offers` и `archive` показывают его состав. */
+  draft: boolean;
+  /** Активные офферы в порядке потока (черновика, если он есть). */
   offers: EditorOffer[];
   archive: EditorOffer[];
 }
@@ -219,4 +226,20 @@ export const api = {
     request<CampaignShort[]>(`/keitaro/campaigns?q=${encodeURIComponent(q)}`),
   /** Открытие кампании в редакторе и Fetch — одна и та же загрузка. */
   loadEditorCampaign: (campaignId: number) => request<EditorView>(`/editor/campaigns/${campaignId}`),
+  // Действия с черновиком оффер-потока; каждое отвечает полным состоянием кампании.
+  addOffer: (campaignId: number, streamId: number, offerId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers`, {
+      method: 'POST',
+      body: JSON.stringify({ offer_id: offerId }),
+    }),
+  removeOffer: (campaignId: number, streamId: number, offerId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}`, { method: 'DELETE' }),
+  bringBackOffer: (campaignId: number, streamId: number, offerId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/offers/${offerId}/bring-back`, { method: 'POST' }),
+  cancelDraft: (campaignId: number, streamId: number) =>
+    request<EditorView>(`${streamPath(campaignId, streamId)}/draft`, { method: 'DELETE' }),
 };
+
+function streamPath(campaignId: number, streamId: number): string {
+  return `/editor/campaigns/${campaignId}/streams/${streamId}`;
+}

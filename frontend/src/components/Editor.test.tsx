@@ -10,7 +10,17 @@ function json(body: unknown, status = 200) {
 }
 
 function offer(offer_id: number, share: number | null, extra: Partial<EditorOffer> = {}): EditorOffer {
-  return { offer_id, name: `Offer ${offer_id}`, share, disabled: false, deleted: false, pinned: false, ...extra };
+  return {
+    offer_id,
+    name: `Offer ${offer_id}`,
+    share,
+    new_share: share,
+    disabled: false,
+    deleted: false,
+    pinned: false,
+    published: true,
+    ...extra,
+  };
 }
 
 function stream(id: number, extra: Partial<EditorStream> = {}): EditorStream {
@@ -22,6 +32,7 @@ function stream(id: number, extra: Partial<EditorStream> = {}): EditorStream {
     state: 'active',
     schema: 'landings',
     is_offer_stream: true,
+    draft: false,
     offers: [offer(1, 100)],
     archive: [],
     ...extra,
@@ -120,7 +131,7 @@ describe('Editor', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Сумма долей в Keitaro — 70, а не 100');
     expect(screen.getByTitle('Не распределено: 30%')).toBeInTheDocument();
 
-    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1, -1);
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringMatching(/#1 Offer 1.*30%/),
       expect.stringMatching(/#2 Offer 2.*выключен в Keitaro.*30%/),
