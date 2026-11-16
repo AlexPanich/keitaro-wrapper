@@ -15,7 +15,10 @@ from app.services.keitaro.client import HTML_BODY, KeitaroError
 
 
 class FakeKeitaro:
-    """Заглушка клиента Keitaro — без сетевых запросов. Тест может подменить списки.
+    """Заглушка клиента Keitaro — без сетевых запросов.
+
+    Тест подменяет данные через фикстуру `keitaro`: списки `offers`, `groups`, `domains`,
+    `traffic_sources`, а также `campaigns` (`{id: кампания}`) и `streams` (`{campaign_id: [потоки]}`).
 
     Каждый вызов пишется в ``calls`` как ``(метод, аргумент)`` — по нему тест проверяет,
     что ушло в Keitaro. Ответы ``create_campaign`` и ``create_stream`` можно подменить
@@ -27,6 +30,8 @@ class FakeKeitaro:
         self.groups: list[dict] = []
         self.domains: list[dict] = []
         self.traffic_sources: list[dict] = []
+        self.campaigns: dict[int, dict] = {}
+        self.streams: dict[int, list[dict]] = {}
         self.calls: list[tuple[str, object]] = []
         self.campaign_responses: list[dict | Exception] = []
         self.stream_responses: list[dict | Exception] = []
@@ -71,6 +76,25 @@ class FakeKeitaro:
     async def create_stream(self, payload: dict) -> dict:
         self.calls.append(("create_stream", payload))
         return self._queued(self.stream_responses) or {"id": self._id(), **payload}
+
+    async def list_campaigns(self) -> list[dict]:
+        self.calls.append(("list_campaigns", None))
+        return list(self.campaigns.values())
+
+    async def get_campaign(self, campaign_id: int) -> dict:
+        self.calls.append(("get_campaign", campaign_id))
+        if campaign_id not in self.campaigns:
+            # Keitaro отвечает на несуществующую кампанию 404 HTML-страницей nginx.
+            raise KeitaroError(
+                "keitaro_error",
+                "Keitaro вернул ошибку",
+                KeitaroDetails(status=404, method="GET", path=f"/campaigns/{campaign_id}", body=None),
+            )
+        return self.campaigns[campaign_id]
+
+    async def list_streams(self, campaign_id: int) -> list[dict]:
+        self.calls.append(("list_streams", campaign_id))
+        return self.streams.get(campaign_id, [])
 
     async def list_groups(self, group_type: str = "campaigns") -> list[dict]:
         self.calls.append(("list_groups", group_type))

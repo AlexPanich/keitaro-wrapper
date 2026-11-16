@@ -53,9 +53,9 @@ async def test_pydantic_errors_go_to_fields(client):
 
 
 async def test_path_param_error(client):
-    res = await client.get("/api/campaigns/abc/offers")
+    res = await client.get("/api/editor/campaigns/abc")
     assert res.status_code == 422
-    assert res.json()["fields"] == {"keitaro_id": "Ожидается целое число"}
+    assert res.json()["fields"] == {"campaign_id": "Ожидается целое число"}
 
 
 async def test_invalid_json_body(client):
@@ -114,9 +114,21 @@ async def test_keitaro_failures_in_envelope(raw_client, keitaro_response, handle
     assert API_KEY not in res.text
 
 
+class _BrokenKeitaro:
+    async def list_offers(self) -> list[dict]:
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        pass
+
+
 async def test_unexpected_exception_is_internal_error(raw_client, caplog):
-    # Заглушка ручки бросает NotImplementedError — это тоже непредвиденная ошибка.
-    res = await raw_client.get("/api/keitaro/campaigns")
+    # NotImplementedError изнутри ручки — непредвиденная ошибка.
+    app.dependency_overrides[get_keitaro] = lambda: _BrokenKeitaro()
+    try:
+        res = await raw_client.get("/api/keitaro/offers")
+    finally:
+        app.dependency_overrides.clear()
     assert res.status_code == 500
     assert res.json() == {
         "code": "internal_error",

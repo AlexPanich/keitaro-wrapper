@@ -56,11 +56,14 @@ async def get_defaults(
     )
 
 
-def _matches(offer: dict, q: str) -> bool:
-    """Подстрока в ``name`` без учёта регистра или точное совпадение по ``id``."""
-    if q.casefold() in str(offer.get("name", "")).casefold():
+def matches(item: dict, q: str) -> bool:
+    """Подстрока в ``name`` без учёта регистра или точное совпадение по ``id``.
+
+    Общее правило поиска для офферов и кампаний.
+    """
+    if q.casefold() in str(item.get("name", "")).casefold():
         return True
-    return q.isdigit() and int(q) == offer.get("id")
+    return q.isdigit() and int(q) == item.get("id")
 
 
 async def search_offers(keitaro: KeitaroClient, q: str = "") -> list[OfferShort]:
@@ -69,5 +72,5 @@ async def search_offers(keitaro: KeitaroClient, q: str = "") -> list[OfferShort]
     return [
         OfferShort(id=o["id"], name=o["name"], group=o.get("group"), state=o.get("state"))
         for o in await keitaro.list_offers()
-        if not q or _matches(o, q)
+        if not q or matches(o, q)
     ]

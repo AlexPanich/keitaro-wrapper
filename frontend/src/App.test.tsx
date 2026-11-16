@@ -20,6 +20,6 @@ describe('App (smoke)', () => {
     expect(await screen.findByRole('option', { name: 'Тестовые' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Редактор офферов' }));
-    expect(screen.getByRole('button', { name: 'Добавить оффер' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Кампания' })).toBeInTheDocument();
   });
 });

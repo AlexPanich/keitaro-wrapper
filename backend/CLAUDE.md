@@ -12,8 +12,7 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `models/` — ORM-модели (`Mapped[...]` / `mapped_column`).
 - `schemas/` — Pydantic-схемы запросов/ответов.
 - `services/keitaro/client.py` — тонкий async-клиент Keitaro Admin API (`/admin_api/v1`, заголовок `Api-Key`).
-- `services/campaign_builder.py` — создаватор: проверки формы и id по Keitaro, кампания с подбором alias, гео- и оффер-поток, строка журнала.
-- `services/offer_editor.py` — редактор (пока заглушка с TODO).
+- `services/campaign_builder.py` — создаватор: проверки формы и id по Keitaro, кампания с подбором alias, гео- и оффер-поток, строка журнала; `services/editor.py` — редактор: поиск кампании, загрузка потоков и сверка `stream_offers` с Keitaro.
 
 ## Соглашения
 
@@ -23,7 +22,7 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `KeitaroError` (наследник `ApiError`) бросает только клиент: `keitaro_auth` / `keitaro_error` / `keitaro_unavailable`, в `keitaro` — `{status, method, path, body}` без ключа API. Сервисы могут перехватить её и бросить свою ошибку с текстом шага. `message` всегда наш, по-русски.
 - Ошибки Pydantic автоматически раскладываются в `fields`; любое непредвиденное исключение (включая `NotImplementedError` заглушек) → `internal_error` 500, traceback только в лог.
 - Новые методы Keitaro добавляй в `KeitaroClient` через `_request`, не дергай `httpx` напрямую из сервисов.
-- Доли офферов в потоке в сумме всегда 100 (`StreamOffer.share` 0..100).
+- Доли офферов, которые пишет обёртка, в сумме дают 100. Но в Keitaro поток может прийти с суммой ≠ 100 — редактор показывает его как есть, не нормализует.
 
 ## Миграции
 
@@ -47,6 +46,6 @@ pytest
 
 - pytest + anyio, async-тесты помечаются `pytestmark = pytest.mark.anyio`.
 - Клиент Keitaro тестируется через `KeitaroClient(transport=httpx.MockTransport(...))` — без сети.
-- Фикстура `client` в `tests/conftest.py` — `httpx.AsyncClient` поверх `ASGITransport`, `get_keitaro` подменён на `FakeKeitaro`. Нужны новые методы Keitaro в тестах — добавляй их в `FakeKeitaro`.
+- Фикстура `client` в `tests/conftest.py` — `httpx.AsyncClient` поверх `ASGITransport`, `get_keitaro` подменён на `FakeKeitaro`. Данные фейка (`offers`, `campaigns`, `streams`) настраиваются в тесте через фикстуру `keitaro` — это тот же экземпляр, что получают ручки. Нужны новые методы Keitaro в тестах — добавляй их в `FakeKeitaro`.
 - Хранилище в тестах — SQLite в памяти (`aiosqlite`), Postgres не нужен. Фикстура `session_factory` на каждый тест создаёт пустую базу по `Base.metadata.create_all` (не по миграциям); фикстура `client` подменяет `get_session` сессиями из неё. Подготовить данные или проверить результат — фикстура `session` (или `session_factory()` для чистой сессии). Сервисы с хранилищем в юнит-тестах вызывай с той же `session`.
 - Postgres-специфичные типы в моделях объявляй с вариантом для SQLite: `ARRAY(...).with_variant(JSON(), "sqlite")` (см. `Campaign.geo`). Миграции и `alembic check` проверяются только на Postgres, руками.
