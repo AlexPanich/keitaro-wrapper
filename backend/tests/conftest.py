@@ -32,6 +32,17 @@ class FakeKeitaro:
     async def list_offers(self) -> list[dict]:
         return self.offers
 
+    async def get_offer(self, offer_id: int) -> dict:
+        for offer in self.offers:
+            if offer["id"] == offer_id:
+                return offer
+        # Несуществующий оффер Keitaro отдаёт 404 HTML-страницей nginx.
+        raise KeitaroError(
+            "keitaro_error",
+            "Keitaro вернул ошибку",
+            KeitaroDetails(status=404, method="GET", path=f"/offers/{offer_id}", body=None),
+        )
+
     async def list_campaigns(self) -> list[dict]:
         return list(self.campaigns.values())
 

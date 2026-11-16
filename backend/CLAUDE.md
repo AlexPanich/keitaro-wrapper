@@ -12,7 +12,8 @@ FastAPI + SQLAlchemy 2.0 (async, asyncpg) + Alembic + pydantic-settings. Python 
 - `models/` — ORM-модели (`Mapped[...]` / `mapped_column`).
 - `schemas/` — Pydantic-схемы запросов/ответов.
 - `services/keitaro/client.py` — тонкий async-клиент Keitaro Admin API (`/admin_api/v1`, заголовок `Api-Key`).
-- `services/campaign_builder.py` — создаватор (пока заглушка с TODO); `services/editor.py` — редактор: поиск кампании, загрузка потоков и сверка `stream_offers` с Keitaro.
+- `services/campaign_builder.py` — создаватор (пока заглушка с TODO); `services/editor.py` — редактор: поиск кампании, загрузка потоков, сверка `stream_offers` с Keitaro и черновик потока (Add / Remove / Bring back / Cancel; каждое действие отвечает полным `EditorView`); `services/shares.py` — чистый пересчёт долей (правило #8).
+- Черновик: `stream_drafts.offers` — активные офферы в порядке потока, `base_offers` — снимок Keitaro при создании. Черновик, совпавший с Keitaro по составу и долям, удаляется при любой сборке ответа вместе с неопубликованными строками `stream_offers` (как Cancel). Мгновенные отказы действий — `validation_error` без `fields`; оффер, которого нет в Keitaro при Add, — `fields.offer_id`.
 
 ## Соглашения
 

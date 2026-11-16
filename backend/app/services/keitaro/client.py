@@ -134,6 +134,10 @@ class KeitaroClient:
     async def list_offers(self) -> list[dict]:
         return await self._request("GET", "/offers")
 
+    async def get_offer(self, offer_id: int) -> dict:
+        # Несуществующий оффер — 404 (HTML), т. е. KeitaroError со status == 404.
+        return await self._request("GET", f"/offers/{offer_id}")
+
     # --- кампании ---
     async def list_campaigns(self) -> list[dict]:
         return await self._request("GET", "/campaigns")
