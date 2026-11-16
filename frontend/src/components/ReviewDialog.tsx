@@ -1,10 +1,8 @@
 import { useState } from 'react';
 
 import type { ApiError, EditorStream } from '../api';
-import { offerLabel, reviewDiff, type DiffLine } from '../editor';
+import { CONFLICT_MESSAGE, offerLabel, reviewDiff, type DiffLine } from '../editor';
 import ErrorBanner from './ErrorBanner';
-
-export const CONFLICT_MESSAGE = 'Поток в Keitaro изменился после начала правок';
 
 interface Props {
   stream: EditorStream;
@@ -33,14 +31,16 @@ function describe({ kind, offer }: DiffLine): string {
  * при сбое Keitaro (502/504) — плашка с «Повторить», черновик остаётся.
  */
 export default function ReviewDialog({ stream, busy, onPublish, onBack }: Props) {
-  const [conflict, setConflict] = useState(stream.conflict);
+  // Текст конфликта: при отказе `draft_conflict` — сообщение бэка, иначе общий текст.
+  const [conflictMessage, setConflictMessage] = useState<string | null>(stream.conflict ? CONFLICT_MESSAGE : null);
+  const conflict = conflictMessage !== null;
   const [error, setError] = useState<ApiError | null>(null);
 
   const publish = async () => {
     setError(null);
     const err = await onPublish(conflict);
     if (!err) return;
-    if (err.code === 'draft_conflict') setConflict(true);
+    if (err.code === 'draft_conflict') setConflictMessage(err.message || CONFLICT_MESSAGE);
     else setError(err);
   };
   const retryable = error !== null && (error.status === 502 || error.status === 504);
@@ -51,7 +51,7 @@ export default function ReviewDialog({ stream, busy, onPublish, onBack }: Props)
         <h3>Проверка изменений · {stream.name}</h3>
         {conflict && (
           <div className="alert alert--bad" role="alert">
-            {CONFLICT_MESSAGE}
+            {conflictMessage}
           </div>
         )}
         <ErrorBanner
