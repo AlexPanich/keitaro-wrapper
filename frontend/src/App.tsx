@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { api, type OfferShort } from './api';
+import { api, toApiError, type ApiError, type OfferShort } from './api';
 import CreateCampaign from './components/CreateCampaign';
+import ErrorBanner from './components/ErrorBanner';
 import OfferEditor from './components/OfferEditor';
 
 type Tab = 'create' | 'edit';
@@ -9,9 +10,13 @@ type Tab = 'create' | 'edit';
 export default function App() {
   const [tab, setTab] = useState<Tab>('create');
   const [offers, setOffers] = useState<OfferShort[]>([]);
+  const [offersError, setOffersError] = useState<ApiError | null>(null);
 
   useEffect(() => {
-    api.listOffers().then(setOffers).catch((e) => console.error('Не удалось загрузить офферы', e));
+    api
+      .listOffers()
+      .then(setOffers)
+      .catch((e) => setOffersError(toApiError(e)));
   }, []);
 
   return (
@@ -27,7 +32,10 @@ export default function App() {
           </button>
         </nav>
       </header>
-      <main>{tab === 'create' ? <CreateCampaign offers={offers} /> : <OfferEditor offers={offers} />}</main>
+      <main>
+        <ErrorBanner error={offersError} onClose={() => setOffersError(null)} />
+        {tab === 'create' ? <CreateCampaign offers={offers} /> : <OfferEditor offers={offers} />}
+      </main>
     </>
   );
 }
