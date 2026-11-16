@@ -1,6 +1,6 @@
 """Единый конверт ошибок API.
 
-Любая ошибка ручек уходит клиенту как ``{code, message, fields, keitaro}``.
+Любая ошибка ручек уходит клиенту как ``{code, message, fields, keitaro, keitaro_url}``.
 Список ``code`` закрытый (решение в #15); новый код добавляется только вместе
 с union-типом ``ErrorCode`` во ``frontend/src/api.ts``.
 """
@@ -44,12 +44,14 @@ class ApiError(Exception):
         *,
         fields: dict[str, str] | None = None,
         keitaro: KeitaroDetails | None = None,
+        keitaro_url: str | None = None,
     ):
         super().__init__(message)
         self.code = code
         self.message = message
         self.fields = fields or {}
         self.keitaro = keitaro
+        self.keitaro_url = keitaro_url
 
     @property
     def status_code(self) -> int:
@@ -61,12 +63,15 @@ def error_response(
     message: str,
     fields: dict[str, str] | None = None,
     keitaro: KeitaroDetails | None = None,
+    keitaro_url: str | None = None,
     *,
     status_code: int | None = None,
     headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """Конверт ошибки. ``status_code`` переопределяет статус из ``code`` — только для ошибок Starlette."""
-    body = ErrorResponse(code=code, message=message, fields=fields or {}, keitaro=keitaro)
+    body = ErrorResponse(
+        code=code, message=message, fields=fields or {}, keitaro=keitaro, keitaro_url=keitaro_url
+    )
     return JSONResponse(
         status_code=status_code or HTTP_STATUS[code],
         content=body.model_dump(mode="json"),
@@ -112,7 +117,7 @@ def pydantic_fields(errors: list[dict[str, Any]]) -> dict[str, str]:
 
 
 async def _api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
-    return error_response(exc.code, exc.message, exc.fields, exc.keitaro)
+    return error_response(exc.code, exc.message, exc.fields, exc.keitaro, exc.keitaro_url)
 
 
 async def _validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
