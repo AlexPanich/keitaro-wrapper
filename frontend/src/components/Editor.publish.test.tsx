@@ -163,6 +163,18 @@ describe('Editor: публикация черновика', () => {
     expect(sentBodies(fetchMock)).toEqual([{ overwrite: false }, { overwrite: true }]);
   });
 
+  it('конфликт при публикации — в окне текст ошибки с бэка', async () => {
+    mockBackend(view(drafted), {
+      [PUBLISH]: () => envelope('draft_conflict', 'Кто-то поменял поток в Keitaro', 409),
+    });
+    await openCampaign();
+    const dialog = await openReview();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Опубликовать' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Кто-то поменял поток в Keitaro');
+  });
+
   it('поток изменился в Keitaro — предупреждение над потоком при загрузке и сразу в окне', async () => {
     mockBackend(view({ ...drafted, conflict: true }));
     await openCampaign();
@@ -172,6 +184,15 @@ describe('Editor: публикация черновика', () => {
     const dialog = await openReview();
     expect(within(dialog).getByRole('alert')).toHaveTextContent('Поток в Keitaro изменился после начала правок');
     expect(within(dialog).getByRole('button', { name: 'Перезаписать Keitaro' })).toBeInTheDocument();
+  });
+
+  it('черновик в конфликте — точка потока «требует внимания», а не «черновик»', async () => {
+    mockBackend(view({ ...drafted, conflict: true }));
+    await openCampaign();
+
+    const streams = screen.getByRole('list', { name: 'Потоки' });
+    expect(within(streams).getByTitle('требует внимания')).toBeInTheDocument();
+    expect(within(streams).queryByTitle('черновик')).not.toBeInTheDocument();
   });
 
   it('сбой PUT — окно не закрывается, плашка с «Повторить», черновик на месте', async () => {

@@ -4,6 +4,7 @@ import type { ApiError, EditorStream } from '../api';
 import {
   allPinnedSumProblem,
   canPublish,
+  CONFLICT_MESSAGE,
   hasSumProblem,
   newShareSum,
   offerLabel,
@@ -14,7 +15,7 @@ import AddOffer from './AddOffer';
 import DraftBar from './DraftBar';
 import OfferTags from './OfferTags';
 import OffersTable from './OffersTable';
-import ReviewDialog, { CONFLICT_MESSAGE } from './ReviewDialog';
+import ReviewDialog from './ReviewDialog';
 import ShareBar from './ShareBar';
 import Tag from './Tag';
 

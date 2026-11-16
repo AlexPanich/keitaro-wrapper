@@ -7,6 +7,12 @@ export const STREAM_TYPE_LABEL: Record<string, string> = {
   default: 'по умолчанию',
 };
 
+/**
+ * Предупреждение о черновике, расходящемся с Keitaro, — пока бэк не прислал свой текст
+ * (флаг `EditorStream.conflict` приходит без сообщения).
+ */
+export const CONFLICT_MESSAGE = 'Поток в Keitaro изменился после начала правок';
+
 export function streamTypeLabel(type: string): string {
   return STREAM_TYPE_LABEL[type] ?? type;
 }
@@ -74,13 +80,13 @@ export function allPinnedSumProblem(stream: EditorStream): boolean {
 
 /**
  * Точка у потока в списке: серый — не оффер-поток, жёлтый — черновик,
- * красный — требует внимания, зелёный — опубликован.
+ * красный — требует внимания (в т. ч. черновик в конфликте с Keitaro), зелёный — опубликован.
  */
 export type StreamStatus = 'readonly' | 'draft' | 'attention' | 'published';
 
 export function streamStatus(stream: EditorStream): StreamStatus {
   if (!stream.is_offer_stream) return 'readonly';
-  if (allPinnedSumProblem(stream)) return 'attention';
+  if (stream.conflict || allPinnedSumProblem(stream)) return 'attention';
   if (stream.draft) return 'draft';
   if (hasSumProblem(stream)) return 'attention';
   return 'published';
